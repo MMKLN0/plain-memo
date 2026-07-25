@@ -31,7 +31,6 @@ import {
 import { stripTrailingWikiLink, withMemoIdAlias } from "../utils/references";
 import { parseMemoTags } from "../utils/markdown";
 import { formatServiceError, formatSettingsText } from "../utils/serviceText";
-import { getComposerToolButtonRoute } from "./KnomoActionRouter";
 import type { MemoAction, TrashAction } from "./KnomoActionDispatch";
 import { CardImageLoadQueue, type CardImageLoadSurface } from "./CardImageLoadQueue";
 import { DateChangeWatcher } from "./DateChangeWatcher";
@@ -1372,8 +1371,6 @@ export class KnomoView extends ItemView {
 			this.wikiLinkSuggest?.refreshForCursor();
 			this.closeTimeBuoyPickerIfTriggerMoved();
 		});
-		this.registerDomEvent(composer.toolsEl, "pointerdown", (event) => this.handleComposerToolPointerDown(event));
-		this.registerDomEvent(composer.toolsEl, "mousedown", (event) => this.handleComposerToolPointerDown(event));
 		this.registerDomEvent(this.sendButtonEl, "pointerdown", (event) => {
 			this.handleSendPointerDown(event);
 		});
@@ -3453,6 +3450,7 @@ export class KnomoView extends ItemView {
 			this.clearComposerContext();
 			if (this.inputEl !== null) {
 				this.inputEl.value = "";
+				this.syncRecognizedTagChips();
 			}
 			if (isMobileSave) {
 				this.closeMobileComposerKeepingDraft();
@@ -4098,35 +4096,6 @@ export class KnomoView extends ItemView {
 				void this.saveInput();
 			},
 		});
-	}
-
-	private handleComposerToolPointerDown(event: PointerEvent | MouseEvent): void {
-		if (this.currentLayout !== "mobile") {
-			return;
-		}
-		const target = event.target as Node | null;
-		if (!target?.instanceOf(Element)) {
-			return;
-		}
-		const toolButtonRoute = getComposerToolButtonRoute(target);
-		if (toolButtonRoute === null) {
-			return;
-		}
-		const { action, element: toolButton } = toolButtonRoute;
-		if (action === null) {
-			return;
-		}
-		event.preventDefault();
-		event.stopPropagation();
-		if (action === "insert-image") {
-			return;
-		}
-		if (this.mobileHandledToolPointer.isHandled(toolButton, action)) {
-			return;
-		}
-		if (this.runComposerToolAction(action)) {
-			this.mobileHandledToolPointer.mark(toolButton, action);
-		}
 	}
 
 	private handleMobileComposerActionPointerDown(event: PointerEvent | MouseEvent): void {

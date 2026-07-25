@@ -46,7 +46,7 @@ export interface SidebarDragState {
 export function renderKnomoSidebar(sidebar: HTMLElement, options: KnomoSidebarOptions): KnomoSidebarElements {
 	const header = sidebar.createDiv({ cls: "knomo-sidebar-header" });
 	const brand = header.createDiv({ cls: "knomo-brand" });
-	brand.createDiv({ cls: "knomo-brand-title", text: "Knomo" });
+	brand.createDiv({ cls: "knomo-brand-title", text: "PlainMemo" });
 	brand.createDiv({ cls: "knomo-brand-subtitle", text: t("sidebar.subtitle") });
 	const actions = header.createDiv({ cls: "knomo-sidebar-actions" });
 	options.createIconButton(actions, "bar-chart-3", t("sidebar.stats"), "knomo-sidebar-action", "focus-stats");
