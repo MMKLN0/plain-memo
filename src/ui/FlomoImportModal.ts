@@ -1,4 +1,4 @@
-import { Modal, Notice, Setting } from "obsidian";
+import { Modal, Notice, Platform, Setting } from "obsidian";
 import type { App } from "obsidian";
 
 import { t } from "../i18n";
@@ -25,6 +25,10 @@ export class FlomoImportModal extends Modal {
 	constructor(app: App, private readonly options: FlomoImportModalOptions) {
 		super(app);
 		this.targetFolder = options.defaultFolder;
+		if (Platform.isMobile) {
+			// Obsidian's phone close animation is independent from this open-animation flag.
+			(this as unknown as { shouldAnimate: boolean }).shouldAnimate = false;
+		}
 	}
 
 	onOpen(): void {
