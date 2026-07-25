@@ -8,6 +8,7 @@ import {
 	measureSuggestionContentHeight,
 	measureSuggestionContentWidth,
 } from "./composerSuggestPosition";
+import { TagSuggestActivationState } from "./TagSuggestActivationState";
 
 interface TagSuggestion {
 	tag: string;
@@ -17,6 +18,7 @@ interface TagSuggestion {
 export class KnomoTagSuggest extends AbstractInputSuggest<TagSuggestion> {
 	private tagsSnapshot: string[] | null = null;
 	private popoverRepositionFrameId: number | null = null;
+	private readonly activationState = new TagSuggestActivationState();
 
 	constructor(
 		app: App,
@@ -25,6 +27,18 @@ export class KnomoTagSuggest extends AbstractInputSuggest<TagSuggestion> {
 	) {
 		super(app, inputEl as unknown as HTMLInputElement);
 		this.limit = 0;
+		this.inputEl.addEventListener("beforeinput", (event) => {
+			this.activationState.handleBeforeInput({
+				value: this.inputEl.value,
+				selectionStart: this.inputEl.selectionStart,
+				selectionEnd: this.inputEl.selectionEnd,
+				inputType: event.inputType,
+				data: event.data,
+			});
+			if (!this.activationState.isEnabled()) this.close();
+		}, { capture: true });
+		this.inputEl.addEventListener("focus", () => this.reset(), { capture: true });
+		this.inputEl.addEventListener("click", () => this.reset(), { capture: true });
 	}
 
 	open(): void {
@@ -40,7 +54,13 @@ export class KnomoTagSuggest extends AbstractInputSuggest<TagSuggestion> {
 		this.tagsSnapshot = null;
 	}
 
+	reset(): void {
+		this.activationState.reset();
+		this.close();
+	}
+
 	openForCurrentTrigger(): void {
+		this.activationState.enableExplicitly();
 		this.open();
 		this.queuePopoverReposition();
 		const container = this.getSuggestionContainer();
@@ -50,6 +70,9 @@ export class KnomoTagSuggest extends AbstractInputSuggest<TagSuggestion> {
 	}
 
 	protected getSuggestions(): TagSuggestion[] {
+		if (!this.activationState.isEnabled()) {
+			return [];
+		}
 		const range = getTagQueryAtCursor(this.inputEl.value, this.inputEl.selectionStart);
 		if (range === null) {
 			return [];

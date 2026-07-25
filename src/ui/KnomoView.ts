@@ -4002,6 +4002,7 @@ export class KnomoView extends ItemView {
 	}
 
 	private startEditing(memo: MemoRecord): void {
+		this.tagSuggest?.reset();
 		this.editingMemo = memo;
 		this.quoteSourceMemoId = null;
 		this.quoteReferenceText = null;
