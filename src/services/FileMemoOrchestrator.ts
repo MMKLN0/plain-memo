@@ -12,6 +12,7 @@ import { MarkdownBlockService } from "./MarkdownBlockService";
 import type { MemoRecord } from "../types/memo";
 import type { KnomoSettings } from "../types/settings";
 import { formatLocalIsoString, formatMonthPeriod } from "../utils/date";
+import { formatMemoFilenameTimestamp, parseMemoFilenameTimestamp, toSafeMemoFileStem } from "../utils/fileMemoName";
 import { hashMemoContent, hashText } from "../utils/hash";
 import { extractTimeBuoyDates, getTimeBuoyRevision } from "../utils/timeBuoyParser";
 
@@ -28,7 +29,6 @@ interface ReferenceHint {
 	sourceReferenceText: string | null;
 }
 
-const FILE_SUFFIX = /_(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?: \(\d+\))?\.md$/i;
 const TRASH_FOLDER_NAME = "_knomo-trash";
 
 /** Maps standalone Markdown files into the existing card model. */
@@ -78,7 +78,7 @@ export class FileMemoOrchestrator {
 		if (!folder) throw new Error("Choose a default memo folder in PlainMemo settings first.");
 		await this.ensureFolder(folder);
 		const now = new Date();
-		const base = `${fileSafeTitle(firstLine(content))}_${compactTimestamp(now)}`;
+		const base = `${toSafeMemoFileStem(firstLine(content))}_${formatMemoFilenameTimestamp(now)}`;
 		const path = await this.allocatePath(folder, base);
 		const file = await this.app.vault.create(path, content);
 		const hint = toReferenceHint(options);
@@ -227,7 +227,7 @@ export class FileMemoOrchestrator {
 	private isActiveMemoFile(file: TFile): boolean {
 		return !this.isManagedTrashPath(file.path)
 			&& this.getScanFolders().some((folder) => file.path.startsWith(`${folder}/`))
-			&& parseCreatedAt(file.name) !== null;
+			&& parseMemoFilenameTimestamp(file.name) !== null;
 	}
 
 	private async readCachedFile(file: TFile): Promise<MemoRecord | null> {
@@ -244,7 +244,7 @@ export class FileMemoOrchestrator {
 
 	private async readFile(file: TFile, fallback?: Date, hint?: ReferenceHint): Promise<MemoRecord> {
 		const content = normalizeContent(await this.app.vault.cachedRead(file));
-		const created = parseCreatedAt(file.name) ?? fallback ?? new Date(file.stat.ctime);
+		const created = parseMemoFilenameTimestamp(file.name) ?? fallback ?? new Date(file.stat.ctime);
 		const metadata = this.markdown.parseMemoMetadata(content);
 		const contentHash = hashMemoContent(content);
 		const reference = this.resolveReference(content, file.path, hint);
@@ -300,7 +300,7 @@ export class FileMemoOrchestrator {
 		while (match !== null) {
 			const rawTarget = match[2].split("|")[0].split("#")[0].trim();
 			const target = this.app.metadataCache.getFirstLinkpathDest(rawTarget, sourcePath);
-			if (target instanceof TFile && target.path !== sourcePath && parseCreatedAt(target.name) !== null) {
+			if (target instanceof TFile && target.path !== sourcePath && parseMemoFilenameTimestamp(target.name) !== null) {
 				return { sourceMemoId: target.path, referenceText: match[1] };
 			}
 			match = pattern.exec(content);
@@ -364,28 +364,6 @@ function normalizeContent(value: string): string {
 
 function firstLine(value: string): string {
 	return value.split("\n", 1)[0].trim();
-}
-
-function fileSafeTitle(value: string): string {
-	return value.replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").slice(0, 100).trim() || "Memo";
-}
-
-function compactTimestamp(date: Date): string {
-	return `${String(date.getFullYear()).slice(-2)}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}${String(date.getHours()).padStart(2, "0")}${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function parseCreatedAt(name: string): Date | null {
-	const match = name.match(FILE_SUFFIX);
-	if (match === null) return null;
-	const parts = match.slice(1, 6).map(Number);
-	const date = new Date(2000 + parts[0], parts[1] - 1, parts[2], parts[3], parts[4]);
-	return date.getFullYear() === 2000 + parts[0]
-		&& date.getMonth() === parts[1] - 1
-		&& date.getDate() === parts[2]
-		&& date.getHours() === parts[3]
-		&& date.getMinutes() === parts[4]
-		? date
-		: null;
 }
 
 function parentPath(path: string): string {

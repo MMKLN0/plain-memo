@@ -1,11 +1,15 @@
-import { Notice, PluginSettingTab, Setting } from "obsidian";
+import { displayTooltip, Notice, PluginSettingTab, Setting } from "obsidian";
 import type { App, Plugin } from "obsidian";
 
 import { t } from "../i18n";
 import type { FileMemoOrchestrator } from "../services/FileMemoOrchestrator";
+import { FlomoImportService } from "../services/FlomoImportService";
+import { MemoFilenameImportService } from "../services/MemoFilenameImportService";
 import type { ObsidianExcludeService } from "../services/ObsidianExcludeService";
 import type { SettingsService } from "../services/SettingsService";
 import { normalizeVaultPath } from "../utils/path";
+import { showKnomoConfirmModal } from "./KnomoConfirmModal";
+import { FlomoImportModal } from "./FlomoImportModal";
 
 /** Settings for the standalone file store; no legacy migration is performed. */
 export class KnomoSettingTab extends PluginSettingTab {
@@ -42,6 +46,13 @@ export class KnomoSettingTab extends PluginSettingTab {
 				await this.settings.updateSettings({ memoFolders: [...(current.memoFolders ?? []), folder] });
 				await this.afterSettingsChanged();
 				this.display();
+			}));
+
+		new Setting(containerEl)
+			.setName(t("settings.file.flomoImport"))
+			.setDesc(t("settings.file.flomoImportDescription"))
+			.addButton((button) => button.setButtonText(t("settings.file.flomoImportAction")).onClick(() => {
+				this.openFlomoImport();
 			}));
 
 		const current = this.settings.getSettings();
@@ -113,6 +124,14 @@ export class KnomoSettingTab extends PluginSettingTab {
 				.setDesc(folder === settings.defaultMemoFolder
 					? t("settings.file.defaultFolderBadge")
 					: t("settings.file.recursive"))
+				.addExtraButton((button) => {
+					const tooltip = t("settings.file.importFolderTooltip");
+					button.setIcon("import").onClick(() => { void this.importFolderFilenames(folder); });
+					button.extraSettingsEl.setAttr("aria-label", tooltip);
+					button.extraSettingsEl.addEventListener("pointerenter", () => {
+						displayTooltip(button.extraSettingsEl, tooltip, { delay: 0 });
+					});
+				})
 				.addExtraButton((button) => button.setIcon("trash").setTooltip(t("settings.file.removeFolder")).onClick(async () => {
 					const current = this.settings.getSettings();
 					await this.settings.updateSettings({
@@ -123,6 +142,46 @@ export class KnomoSettingTab extends PluginSettingTab {
 					this.display();
 				}));
 		}
+	}
+
+	private openFlomoImport(): void {
+		const service = new FlomoImportService(this.app);
+		new FlomoImportModal(this.app, {
+			defaultFolder: this.settings.getSettings().defaultMemoFolder ?? "",
+			onPreview: (file, options) => service.preview(file, options),
+			onImport: async (file, folder, options) => {
+				const result = await service.import(file, folder, options);
+				this.store.invalidateAll();
+				await this.onSettingsChanged();
+				return result;
+			},
+			onEnsureScannedFolder: async (folder) => {
+				const current = this.settings.getSettings();
+				if (!(current.memoFolders ?? []).includes(folder)) {
+					await this.settings.updateSettings({ memoFolders: [...(current.memoFolders ?? []), folder] });
+					await this.afterSettingsChanged();
+				}
+			},
+		}).open();
+	}
+
+	private async importFolderFilenames(folder: string): Promise<void> {
+		const service = new MemoFilenameImportService(this.app);
+		const plan = service.plan(folder);
+		if (plan.files.length === 0) {
+			new Notice(t("settings.file.importFolderNothingToDo"));
+			return;
+		}
+		const confirmed = await showKnomoConfirmModal(this.app, {
+			title: t("settings.file.importFolderTitle"),
+			message: t("settings.file.importFolderConfirm", { count: plan.files.length, skipped: plan.skipped }),
+			confirmLabel: t("settings.file.importFolderAction"),
+		});
+		if (!confirmed) return;
+		const result = await service.importFolder(folder);
+		this.store.invalidateAll();
+		await this.onSettingsChanged();
+		new Notice(t("settings.file.importFolderComplete", { renamed: result.renamed, skipped: result.skipped, failed: result.failed.length }));
 	}
 
 	private async commitCollapseThreshold(input: HTMLInputElement): Promise<void> {
