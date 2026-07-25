@@ -1,5 +1,5 @@
-export const KNOMO_VIEW_TYPE = "knomo-view";
-export const KNOMO_VIEW_DISPLAY_TEXT = "Knomo";
+export const KNOMO_VIEW_TYPE = "plain-memo-view";
+export const KNOMO_VIEW_DISPLAY_TEXT = "PlainMemo";
 
 export const SETTINGS_VERSION = 3;
 export const DEFAULT_DAILY_HEADING = "## Memos";

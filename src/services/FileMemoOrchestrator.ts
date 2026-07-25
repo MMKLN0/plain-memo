@@ -31,7 +31,7 @@ interface ReferenceHint {
 const FILE_SUFFIX = /_(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?: \(\d+\))?\.md$/i;
 const TRASH_FOLDER_NAME = "_knomo-trash";
 
-/** Maps standalone Markdown files into the existing Knomo card model. */
+/** Maps standalone Markdown files into the existing card model. */
 export class FileMemoOrchestrator {
 	private readonly markdown = new MarkdownBlockService();
 	private readonly cache = new Map<string, CachedMemo>();
@@ -45,7 +45,7 @@ export class FileMemoOrchestrator {
 			enabled: configured,
 			folder: configured ? defaultFolder : null,
 			format: null,
-			message: configured ? "Standalone memo files are enabled." : "Choose a default memo folder in Knomo settings.",
+			message: configured ? "Standalone memo files are enabled." : "Choose a default memo folder in PlainMemo settings.",
 		};
 	}
 
@@ -75,7 +75,7 @@ export class FileMemoOrchestrator {
 		const content = normalizeContent(input);
 		if (!content) throw new Error("Memo content cannot be empty.");
 		const folder = this.getSettings().defaultMemoFolder ?? "";
-		if (!folder) throw new Error("Choose a default memo folder in Knomo settings first.");
+		if (!folder) throw new Error("Choose a default memo folder in PlainMemo settings first.");
 		await this.ensureFolder(folder);
 		const now = new Date();
 		const base = `${fileSafeTitle(firstLine(content))}_${compactTimestamp(now)}`;
@@ -156,7 +156,7 @@ export class FileMemoOrchestrator {
 
 	async purgeDeletedMemoRecord(memo: MemoRecord): Promise<void> {
 		const file = this.requireFile(memo.dailyRef.path);
-		if (!this.isManagedTrashPath(file.path)) throw new Error("Only memos in Knomo trash can be permanently deleted.");
+		if (!this.isManagedTrashPath(file.path)) throw new Error("Only memos in PlainMemo trash can be permanently deleted.");
 		await this.app.fileManager.trashFile(file);
 	}
 

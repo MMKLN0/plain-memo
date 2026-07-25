@@ -23,7 +23,7 @@ const OPEN_VIEWS_REFRESH_DEBOUNCE_MS = 150;
 
 export function getStartupDailyScanDays(isMobile: boolean): number { return isMobile ? 7 : 30; }
 
-/** Original Knomo interface backed by standalone Markdown memo files. */
+/** PlainMemo interface backed by standalone Markdown memo files. */
 export default class KnomoPlugin extends Plugin {
 	settingsService!: SettingsService;
 	syncOrchestrator!: FileMemoOrchestrator;
@@ -64,7 +64,7 @@ export default class KnomoPlugin extends Plugin {
 		));
 		this.registerMemoFileEvents();
 		this.registerAttachmentEvents();
-		this.registerHoverLinkSource(KNOMO_VIEW_TYPE, { display: "Knomo", defaultMod: false });
+		this.registerHoverLinkSource(KNOMO_VIEW_TYPE, { display: "PlainMemo", defaultMod: false });
 		this.addRibbonIcon(KNOMO_LOGO_ICON, t("app.openKnomo"), () => { void this.activateView(); });
 		this.addCommand({ id: "open-view", name: t("app.openKnomo"), callback: () => { void this.activateView(); } });
 	}

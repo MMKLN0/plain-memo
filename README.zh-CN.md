@@ -1,12 +1,12 @@
-# Knomo
+# PlainMemo
 
 [English](./README.md) | 简体中文
 
 > 一个将碎片笔记保存为独立 Markdown 文件的 Obsidian Memos 插件。
 
-这是 [BanyanSo/knomo](https://github.com/BanyanSo/knomo) 的非官方 fork，基于上游 MIT 许可证继续开发。本仓库不是上游项目的官方发布渠道，也不代表上游作者的观点或支持承诺。
+PlainMemo 是 [BanyanSo/knomo](https://github.com/BanyanSo/knomo) 的非官方 fork，基于上游 MIT 许可证继续开发。本仓库不是上游项目的官方发布渠道，也不代表上游作者的观点或支持承诺。
 
-本分支的目标是让每张卡片都是一个可独立阅读、可用 Obsidian 以外的软件管理的 Markdown 文件，同时保留 Knomo 的卡片浏览、搜索、标签、链接、回顾和移动端输入体验。
+PlainMemo 的目标是让每张卡片都是一个可独立阅读、可用 Obsidian 以外的软件管理的 Markdown 文件，同时保留 Knomo 的卡片浏览、搜索、标签、链接、回顾和移动端输入体验。
 
 ## 与上游的区别
 
@@ -57,13 +57,13 @@ Memos/读完这本书后的一个想法_2607250855.md
 
 本 fork 尚未发布到 Obsidian 社区插件市场。手动安装：
 
-1. 从本仓库的 [Releases](https://github.com/MMKLN0/knomo/releases) 下载与 Obsidian 版本兼容的发布包；若没有 Release，可在源码目录运行 `npm install` 和 `npm run build`。
-2. 将 `main.js`、`manifest.json` 和 `styles.css` 放入 Vault 的 `.obsidian/plugins/knomo/`。
-3. 在 Obsidian 的“第三方插件”中启用 Knomo。
+1. 从本仓库的 [Releases](https://github.com/MMKLN0/plain-memo/releases) 下载与 Obsidian 版本兼容的发布包；若没有 Release，可在源码目录运行 `npm install` 和 `npm run build`。
+2. 将 `main.js`、`manifest.json` 和 `styles.css` 放入 Vault 的 `.obsidian/plugins/plain-memo/`。
+3. 在 Obsidian 的“第三方插件”中启用 PlainMemo。
 
 ## 首次配置
 
-打开 Knomo 设置，在“Knomo 独立卡片文件”中：
+打开 PlainMemo 设置，在“PlainMemo 独立卡片文件”中：
 
 1. 添加一个或多个扫描文件夹，路径相对于 Vault 根目录，例如 `Memos` 或 `收集箱/卡片`。
 2. 选择“默认新建位置”。新卡片只会写入这里，并会自动纳入扫描范围。
@@ -73,18 +73,18 @@ Memos/读完这本书后的一个想法_2607250855.md
 
 ## 导入已有笔记
 
-Knomo 暂不执行导入或迁移操作，而是按规则读取文件：
+PlainMemo 暂不执行导入或迁移操作，而是按规则读取文件：
 
 1. 将笔记放入已配置扫描范围内的文件夹；可保留子文件夹。
 2. 将文件命名为 `<标题>_YYMMDDHHmm.md`，例如 `周末想做的事_2607250855.md`。
 3. 在文件第一行写入标题，后续行写正文。
-4. 重新打开 Knomo 或等待 Vault 文件变更完成刷新。
+4. 重新打开 PlainMemo 或等待 Vault 文件变更完成刷新。
 
 若同一分钟出现同标题，可使用 `标题_2607250855 (2).md`。不符合上述文件名规则的 Markdown 文件不会作为 memo 卡片显示，原文件也不会受到影响。
 
 ## 数据与隐私
 
-所有 memo 都是 Vault 内的普通 Markdown 文件。Knomo 不要求账号、不依赖外部服务器，也不会主动上传笔记内容。插件的设置和可重建的本地状态仅用于界面与功能；你的笔记正文仍保存在各自的 `.md` 文件中。
+所有 memo 都是 Vault 内的普通 Markdown 文件。PlainMemo 不要求账号、不依赖外部服务器，也不会主动上传笔记内容。插件的设置和可重建的本地状态仅用于界面与功能；你的笔记正文仍保存在各自的 `.md` 文件中。
 
 ## 开发
 

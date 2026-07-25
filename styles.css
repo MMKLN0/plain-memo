@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Knomo Plugin Styles — unified v2
+   PlainMemo Plugin Styles - unified v2
    Uses Obsidian theme variables; adapts to light/dark themes automatically.
    ========================================================================== */
 
@@ -175,58 +175,58 @@ body {
 	line-height: 1.6;
 }
 
-.workspace-leaf-content[data-type="knomo-view"] {
+.workspace-leaf-content[data-type="plain-memo-view"] {
 	--knomo-page-background: var(--knomo-app-background-secondary);
 	--knomo-surface: var(--knomo-app-background-primary);
 	--knomo-card-surface: var(--knomo-surface);
 	--knomo-composer-surface: var(--knomo-surface);
 }
 
-body .workspace-leaf-content[data-type="knomo-view"],
-body .workspace-leaf-content[data-type="knomo-view"] .view-content,
-body .workspace-leaf-content[data-type="knomo-view"] .knomo-view-host,
-body .workspace-leaf-content[data-type="knomo-view"] .knomo-plugin.knomo-view,
-body .workspace-leaf-content[data-type="knomo-view"] .knomo-shell,
-body .workspace-leaf-content[data-type="knomo-view"] .knomo-main,
-body .workspace-leaf-content[data-type="knomo-view"] .knomo-content-column,
-body .workspace-leaf-content[data-type="knomo-view"] .knomo-card-flow,
-body .workspace-leaf-content[data-type="knomo-view"] .knomo-sidebar {
+body .workspace-leaf-content[data-type="plain-memo-view"],
+body .workspace-leaf-content[data-type="plain-memo-view"] .view-content,
+body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-view-host,
+body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.knomo-view,
+body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-shell,
+body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-main,
+body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-content-column,
+body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-card-flow,
+body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-sidebar {
 	background-color: var(--knomo-page-background);
 	background-image: none;
 }
 
-body:not(.is-mobile) .workspace-leaf-content[data-type="knomo-view"] .view-header {
+body:not(.is-mobile) .workspace-leaf-content[data-type="plain-memo-view"] .view-header {
 	display: none;
 }
 
-body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header {
+body.is-mobile .workspace-leaf-content[data-type="plain-memo-view"] .view-header {
 	border-bottom: 0;
 	backdrop-filter: blur(18px) saturate(1.4);
 	-webkit-backdrop-filter: blur(18px) saturate(1.4);
 }
 
-body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header.knomo-record-stats-header {
+body.is-mobile .workspace-leaf-content[data-type="plain-memo-view"] .view-header.knomo-record-stats-header {
 	border-inline-end: 0;
 }
 
-body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header.knomo-record-stats-header .view-header-title-container {
+body.is-mobile .workspace-leaf-content[data-type="plain-memo-view"] .view-header.knomo-record-stats-header .view-header-title-container {
 	position: absolute;
 	inset: 0;
 	justify-content: center;
 	pointer-events: none;
 }
 
-body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header.knomo-record-stats-header .view-header-title-container::after {
+body.is-mobile .workspace-leaf-content[data-type="plain-memo-view"] .view-header.knomo-record-stats-header .view-header-title-container::after {
 	display: none;
 }
 
-body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header.knomo-record-stats-header .view-actions {
+body.is-mobile .workspace-leaf-content[data-type="plain-memo-view"] .view-header.knomo-record-stats-header .view-actions {
 	display: flex;
 	margin-inline-start: auto;
 	border: 0;
 }
 
-body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header.knomo-record-stats-header .knomo-record-stats-back {
+body.is-mobile .workspace-leaf-content[data-type="plain-memo-view"] .view-header.knomo-record-stats-header .knomo-record-stats-back {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -236,11 +236,11 @@ body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header.knom
 	min-height: 44px;
 }
 
-body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-actions .view-action:not(.knomo-mobile-header-action) {
+body.is-mobile .workspace-leaf-content[data-type="plain-memo-view"] .view-actions .view-action:not(.knomo-mobile-header-action) {
 	display: none;
 }
 
-body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header-title.knomo-mobile-title {
+body.is-mobile .workspace-leaf-content[data-type="plain-memo-view"] .view-header-title.knomo-mobile-title {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
@@ -249,7 +249,7 @@ body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header-titl
 	cursor: pointer;
 }
 
-body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header-title.knomo-mobile-title .knomo-title-chevron {
+body.is-mobile .workspace-leaf-content[data-type="plain-memo-view"] .view-header-title.knomo-mobile-title .knomo-title-chevron {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -259,15 +259,15 @@ body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header-titl
 	color: var(--text-faint);
 }
 
-body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header-title.knomo-mobile-title .knomo-title-chevron svg {
+body.is-mobile .workspace-leaf-content[data-type="plain-memo-view"] .view-header-title.knomo-mobile-title .knomo-title-chevron svg {
 	display: block;
 	width: 100%;
 	height: 100%;
 	stroke-width: 2;
 }
 
-body .workspace-leaf-content[data-type="knomo-view"] .view-content,
-body .workspace-leaf-content[data-type="knomo-view"] .knomo-view-host {
+body .workspace-leaf-content[data-type="plain-memo-view"] .view-content,
+body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-view-host {
 	padding: 0;
 	overflow: hidden;
 	min-height: 0;
@@ -907,8 +907,8 @@ body .workspace-leaf-content[data-type="knomo-view"] .knomo-view-host {
 	opacity: 1;
 }
 
-body .workspace-leaf-content[data-type="knomo-view"] .knomo-plugin.is-resizing-sidebar,
-body .workspace-leaf-content[data-type="knomo-view"] .knomo-plugin.is-resizing-sidebar * {
+body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-resizing-sidebar,
+body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-resizing-sidebar * {
 	cursor: col-resize;
 	user-select: none;
 }
@@ -3163,7 +3163,7 @@ body .workspace-leaf-content[data-type="knomo-view"] .knomo-plugin.is-resizing-s
 }
 
 .knomo-plugin .knomo-hidden-file-input,
-.workspace-leaf-content[data-type="knomo-view"] > .knomo-hidden-file-input {
+.workspace-leaf-content[data-type="plain-memo-view"] > .knomo-hidden-file-input {
 	position: fixed;
 	inset: auto auto 0 0;
 	width: 0;
@@ -4547,7 +4547,7 @@ body .knomo-mobile-create-fab.is-hidden {
 	grid-template-columns: minmax(72px, 36%) minmax(0, 1fr) auto;
 }
 
-body.is-mobile .workspace-leaf-content[data-type="knomo-view"] .view-header-title.knomo-mobile-title:not([role="button"]) {
+body.is-mobile .workspace-leaf-content[data-type="plain-memo-view"] .view-header-title.knomo-mobile-title:not([role="button"]) {
 	cursor: default;
 }
 

@@ -1,10 +1,10 @@
 {
-	"id": "knomo",
-	"name": "Knomo",
+	"id": "plain-memo",
+	"name": "PlainMemo",
 	"version": "2.0.0",
 	"minAppVersion": "1.11.0",
 	"description": "Capture and manage local-first memos as standalone Markdown files.",
-	"author": "BanyanSo",
-	"authorUrl": "",
+	"author": "MMKLN0",
+	"authorUrl": "https://github.com/MMKLN0",
 	"isDesktopOnly": false
 }

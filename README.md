@@ -1,12 +1,12 @@
-# Knomo
+# PlainMemo
 
 English | [简体中文](./README.zh-CN.md)
 
 > An Obsidian Memos plugin that stores each memo as an independent Markdown file.
 
-This is an unofficial fork of [BanyanSo/knomo](https://github.com/BanyanSo/knomo), continued under the upstream MIT license. It is not an official release channel for the upstream project and does not imply upstream endorsement or support.
+PlainMemo is an unofficial fork of [BanyanSo/knomo](https://github.com/BanyanSo/knomo), continued under the upstream MIT license. It is not an official release channel for the upstream project and does not imply upstream endorsement or support.
 
-This fork keeps Knomo's card-based browsing, search, tags, links, review, and mobile input experience while making every card a self-contained Markdown file that remains useful outside Obsidian.
+PlainMemo keeps Knomo's card-based browsing, search, tags, links, review, and mobile input experience while making every card a self-contained Markdown file that remains useful outside Obsidian.
 
 ## How this fork differs from upstream
 
@@ -55,13 +55,13 @@ Memos/An idea after finishing this book_2607250855.md
 
 This fork is not published in the Obsidian Community Plugins directory. Install it manually:
 
-1. Download a compatible package from [Releases](https://github.com/MMKLN0/knomo/releases). If no release is available, run `npm install` and `npm run build` in a source checkout.
-2. Place `main.js`, `manifest.json`, and `styles.css` in `<vault>/.obsidian/plugins/knomo/`.
-3. Enable Knomo under Obsidian's Community plugins settings.
+1. Download a compatible package from [Releases](https://github.com/MMKLN0/plain-memo/releases). If no release is available, run `npm install` and `npm run build` in a source checkout.
+2. Place `main.js`, `manifest.json`, and `styles.css` in `<vault>/.obsidian/plugins/plain-memo/`.
+3. Enable PlainMemo under Obsidian's Community plugins settings.
 
 ## First-time setup
 
-Open Knomo settings and, under its standalone-card-files section:
+Open PlainMemo settings and, under its standalone-card-files section:
 
 1. Add one or more scan folders relative to the Vault root, for example `Memos` or `Inbox/Cards`.
 2. Choose a default save folder. New cards are written only there, and it is automatically included in the scan scope.
@@ -71,18 +71,18 @@ No personal paths or folders are preconfigured. Until a scan folder is configure
 
 ## Import existing notes
 
-Knomo does not import or migrate files. It reads files that follow its convention:
+PlainMemo does not import or migrate files. It reads files that follow its convention:
 
 1. Put the notes in a configured scan folder; subfolders are supported.
 2. Name each file `<title>_YYMMDDHHmm.md`, for example `Weekend plans_2607250855.md`.
 3. Put the title on the first line and the body below it.
-4. Reopen Knomo or wait for the Vault file change to refresh the card flow.
+4. Reopen PlainMemo or wait for the Vault file change to refresh the card flow.
 
 For same-title notes created in the same minute, use a suffix such as `Weekend plans_2607250855 (2).md`. Markdown files outside this naming convention are ignored as cards and are never changed.
 
 ## Data and privacy
 
-Every memo is an ordinary Markdown file in your Vault. Knomo requires no account, relies on no external service, and does not actively upload note content. Plugin settings and rebuildable local state only support the UI and features; memo content remains in its own `.md` file.
+Every memo is an ordinary Markdown file in your Vault. PlainMemo requires no account, relies on no external service, and does not actively upload note content. Plugin settings and rebuildable local state only support the UI and features; memo content remains in its own `.md` file.
 
 ## Development
 

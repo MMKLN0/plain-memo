@@ -1,5 +1,5 @@
 {
-	"name": "knomo",
+	"name": "plain-memo",
 	"version": "2.0.0",
 	"description": "Capture and manage local-first memos as standalone Markdown files.",
 	"main": "main.js",
@@ -11,14 +11,14 @@
 		"verify": "node scripts/verify.mjs",
 		"lint": "eslint src",
 		"lint:fix": "eslint src --fix",
-		"test": "tsc -p tsconfig.test.json && node .tmp/knomo-tests/scripts/run-tests.js"
+		"test": "tsc -p tsconfig.test.json && node .tmp/plain-memo-tests/scripts/run-tests.js"
 	},
 	"keywords": [
 		"memo",
 		"notes",
 		"local-first"
 	],
-	"author": "BanyanSo",
+	"author": "MMKLN0",
 	"license": "MIT",
 	"private": true,
 	"devDependencies": {
