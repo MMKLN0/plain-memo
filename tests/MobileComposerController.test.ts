@@ -394,6 +394,7 @@ test("closes the mobile composer while keeping the prepared layer mounted", () =
 	assert.equal(layer?.hasClass("is-closing"), true);
 	assert.equal(layer?.hasClass("is-keyboard-tracking"), true);
 	assert.equal(harness.input.blurCount, 1);
+	assert.equal(harness.input.readOnly, true);
 
 	harness.win.visualViewport.height = 800;
 	harness.win.visualViewport.dispatchEvent("resize");
@@ -415,6 +416,7 @@ test("closes the mobile composer while keeping the prepared layer mounted", () =
 	assert.equal(harness.updateSendButtonCalls, 1);
 	assert.equal(harness.updateCancelEditButtonCalls, 1);
 	assert.equal(harness.closedCalls, 1);
+	assert.equal(harness.input.readOnly, false);
 });
 
 function prepareComposerGeometry(
@@ -699,6 +701,7 @@ class FakeElement {
 
 class FakeTextArea extends FakeElement {
 	blurCount = 0;
+	readOnly = false;
 
 	constructor(private readonly doc: FakeDocument) {
 		super("textarea");

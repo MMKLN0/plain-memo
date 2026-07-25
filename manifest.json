@@ -1,7 +1,7 @@
 {
 	"id": "knomo",
 	"name": "Knomo",
-	"version": "1.2.1",
+	"version": "2.0.0",
 	"minAppVersion": "1.11.0",
 	"description": "Capture and manage local-first memos as standalone Markdown files.",
 	"author": "BanyanSo",

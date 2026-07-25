@@ -2670,6 +2670,10 @@ body .workspace-leaf-content[data-type="knomo-view"] .knomo-plugin.is-resizing-s
 	box-shadow: none;
 }
 
+.knomo-plugin:not(.is-layout-mobile) .knomo-card.is-editing {
+	padding-top: 0;
+}
+
 .knomo-plugin .knomo-card.is-editing .knomo-composer:focus-within {
 	border: 0;
 	box-shadow: none;
@@ -2679,7 +2683,7 @@ body .workspace-leaf-content[data-type="knomo-view"] .knomo-plugin.is-resizing-s
 	min-height: 96px;
 	max-height: none;
 	padding: 8px 0;
-	border-top: 1px solid var(--knomo-soft-border);
+	border-top: 0;
 	border-bottom: 1px solid var(--knomo-soft-border);
 }
 
@@ -2701,12 +2705,12 @@ body .workspace-leaf-content[data-type="knomo-view"] .knomo-plugin.is-resizing-s
 	overflow: hidden;
 	-webkit-mask-image: linear-gradient(
 		to bottom,
-		#000 calc(100% - 0.35em),
+		#000 calc(100% - 0.5em),
 		transparent 100%
 	);
 	mask-image: linear-gradient(
 		to bottom,
-		#000 calc(100% - 0.35em),
+		#000 calc(100% - 0.5em),
 		transparent 100%
 	);
 }
@@ -2763,10 +2767,10 @@ body .workspace-leaf-content[data-type="knomo-view"] .knomo-plugin.is-resizing-s
 	background: var(--background-modifier-hover);
 }
 
-.knomo-plugin.is-layout-mobile .knomo-card-body + .knomo-card-collapse-toggle.is-mobile-floating {
+.knomo-plugin .knomo-card-body + .knomo-card-collapse-toggle.is-viewport-floating {
 	position: fixed;
-	right: 10px;
-	bottom: var(--knomo-mobile-floating-collapse-bottom, 72px);
+	right: var(--knomo-floating-collapse-right, 10px);
+	bottom: var(--knomo-floating-collapse-bottom, 12px);
 	z-index: 90;
 	margin: 0;
 	background: var(--background-modifier-hover);
@@ -3462,9 +3466,7 @@ body .knomo-mobile-create-fab.is-hidden {
 }
 
 .knomo-mobile-composer-layer.is-keyboard-tracking .knomo-mobile-composer-content {
-	transition:
-		transform var(--knomo-transition-panel),
-		max-height var(--knomo-transition-panel-size);
+	transition: transform var(--knomo-transition-panel);
 }
 
 .knomo-mobile-composer-layer.is-keyboard-tracking .knomo-mobile-composer-content::after {

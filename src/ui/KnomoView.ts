@@ -302,6 +302,7 @@ export class KnomoView extends ItemView {
 	private expandedTagGroups = new Set<string>();
 	private expandedMemoIds = new Set<string>();
 	private composerOpen = false;
+	private pendingMobileEditCancel = false;
 	private editingMemo: MemoRecord | null = null;
 	private quoteSourceMemoId: string | null = null;
 	private quoteReferenceText: string | null = null;
@@ -790,7 +791,7 @@ export class KnomoView extends ItemView {
 			syncComposerMode: () => this.syncComposerMode(),
 			updateSendButtonState: () => this.updateSendButtonState(),
 			updateCancelEditButtonState: () => this.updateCancelEditButtonState(),
-			onClosed: () => this.resumeMobileBackgroundWork(),
+			onClosed: () => this.handleMobileComposerClosed(),
 		});
 		this.scope = new Scope(this.app.scope);
 		this.scope.register(["Mod"], "Enter", (event) => {
@@ -2839,7 +2840,7 @@ export class KnomoView extends ItemView {
 		card?.toggleClass("has-expanded-memo", expanded);
 		sourceEl.setText(expanded ? t("card.collapse") : t("card.expand"));
 		sourceEl.setAttr("aria-expanded", expanded ? "true" : "false");
-		this.containerEl.win.requestAnimationFrame(() => this.syncMobileFloatingCollapseControls());
+		this.containerEl.win.requestAnimationFrame(() => this.syncFloatingCollapseControls());
 	}
 
 	private renderTrashMemoCard(memo: MemoRecord, generation: number, renderIndex: number): void {
@@ -3955,12 +3956,20 @@ export class KnomoView extends ItemView {
 			return;
 		}
 		if (this.currentLayout === "mobile") {
-			this.inputEl?.blur();
+			this.pendingMobileEditCancel = true;
+			this.closeTimeBuoyPicker(false);
+			this.mobileComposerController.closeKeepingDraft();
+			return;
 		}
 		this.clearComposerMode();
-		if (this.currentLayout === "mobile") {
-			this.closeMobileComposerKeepingDraft();
+	}
+
+	private handleMobileComposerClosed(): void {
+		if (this.pendingMobileEditCancel) {
+			this.pendingMobileEditCancel = false;
+			this.clearComposerMode();
 		}
+		this.resumeMobileBackgroundWork();
 	}
 
 	private clearReference(): void {
@@ -5570,7 +5579,7 @@ export class KnomoView extends ItemView {
 	}
 
 	private handleCardFlowScroll(): void {
-		this.syncMobileFloatingCollapseControls();
+		this.syncFloatingCollapseControls();
 		if (this.activeNav === "time-buoy") {
 			const cardFlow = this.cardFlowEl;
 			if (
@@ -5591,20 +5600,19 @@ export class KnomoView extends ItemView {
 		});
 	}
 
-	private syncMobileFloatingCollapseControls(): void {
+	private syncFloatingCollapseControls(): void {
 		const flow = this.cardFlowEl;
 		if (flow === null) {
 			return;
 		}
 		const buttons = Array.from(flow.querySelectorAll<HTMLElement>(".knomo-card-collapse-toggle"));
 		for (const button of buttons) {
-			button.removeClass("is-mobile-floating");
-			button.style.removeProperty("--knomo-mobile-floating-collapse-bottom");
-		}
-		if (this.currentLayout !== "mobile") {
-			return;
+			button.removeClass("is-viewport-floating");
+			button.style.removeProperty("--knomo-floating-collapse-bottom");
+			button.style.removeProperty("--knomo-floating-collapse-right");
 		}
 		const flowRect = flow.getBoundingClientRect();
+		const viewportBottom = Math.min(flowRect.bottom, this.containerEl.win.innerHeight);
 		const candidate = buttons
 			.map((button) => ({
 				button,
@@ -5616,7 +5624,7 @@ export class KnomoView extends ItemView {
 				}
 				const cardRect = item.card.getBoundingClientRect();
 				const buttonRect = item.button.getBoundingClientRect();
-				return cardRect.top < flowRect.bottom && cardRect.bottom > flowRect.top && buttonRect.top > flowRect.bottom - 4;
+				return cardRect.top < viewportBottom && cardRect.bottom > flowRect.top && buttonRect.top > viewportBottom - 4;
 			})
 			.sort((left, right) => {
 				const center = (flowRect.top + flowRect.bottom) / 2;
@@ -5627,11 +5635,18 @@ export class KnomoView extends ItemView {
 		if (candidate === undefined) {
 			return;
 		}
-		const fab = this.containerEl.doc.querySelector<HTMLElement>(".knomo-mobile-create-fab");
-		const fabTop = fab?.getBoundingClientRect().top ?? this.containerEl.win.innerHeight - 16;
-		const bottom = Math.max(12, this.containerEl.win.innerHeight - fabTop + 20);
-		candidate.button.addClass("is-mobile-floating");
-		candidate.button.style.setProperty("--knomo-mobile-floating-collapse-bottom", `${Math.round(bottom)}px`);
+		const cardRect = candidate.card.getBoundingClientRect();
+		const right = this.currentLayout === "mobile"
+			? 10
+			: Math.max(8, this.containerEl.win.innerWidth - Math.min(cardRect.right, flowRect.right) + 8);
+		const fab = this.currentLayout === "mobile"
+			? this.containerEl.doc.querySelector<HTMLElement>(".knomo-mobile-create-fab")
+			: null;
+		const anchorTop = fab?.getBoundingClientRect().top ?? viewportBottom;
+		const bottom = Math.max(12, this.containerEl.win.innerHeight - anchorTop + (fab === null ? 8 : 20));
+		candidate.button.addClass("is-viewport-floating");
+		candidate.button.style.setProperty("--knomo-floating-collapse-bottom", `${Math.round(bottom)}px`);
+		candidate.button.style.setProperty("--knomo-floating-collapse-right", `${Math.round(right)}px`);
 	}
 
 	private handleTrashRenderRequest(target: TrashMemoRenderTarget): void {

@@ -263,9 +263,15 @@ export class MobileComposerController {
 		this.mobileCapacitorKeyboardHeight = null;
 		this.setKeyboardMetrics(0);
 		this.setComposerBottomOffset(0);
+		const inputEl = this.options.getInputEl();
+		if (inputEl !== null) {
+			inputEl.readOnly = false;
+		}
+		this.startViewportTracking();
+		this.updateMeasurements();
+		this.options.resizeInput();
 		this.revealMobileComposer();
 		this.mobileComposerPhase = "focusing";
-		this.startViewportTracking();
 		this.options.focusInputNow(false, false);
 		this.queueViewportUpdate();
 		this.scheduleKeyboardViewportFallback();
@@ -281,7 +287,11 @@ export class MobileComposerController {
 		this.mobileComposerPhase = "closing";
 		this.clearKeyboardViewportFallback();
 		this.mobileComposerLayerEl?.toggleClass("is-closing", true);
-		this.options.getInputEl()?.blur();
+		const inputEl = this.options.getInputEl();
+		if (inputEl !== null) {
+			inputEl.readOnly = true;
+			inputEl.blur();
+		}
 		this.queueViewportUpdate();
 		this.mobileComposerCloseTimer = this.options.getWindow().setTimeout(() => {
 			this.mobileComposerCloseTimer = null;
@@ -798,6 +808,9 @@ export class MobileComposerController {
 		this.mobileComposerDockSource = composerDock.source;
 		this.mobileKeyboardHeight = keyboardHeight;
 		this.setKeyboardMetrics(keyboardHeight);
+		this.updateMeasurements();
+		this.options.resizeInput();
+		this.updateToolbarAnchorInset();
 		this.syncComposerDockOffset(composerDock, baselineHeight);
 		this.mobileComposerLayerEl?.setAttr("data-knomo-composer-dock-source", composerDock.source);
 		this.maybeFinishClosingAfterDockSettles();
@@ -968,6 +981,10 @@ export class MobileComposerController {
 		}
 		this.stopViewportTracking(false);
 		this.clearKeyboardMetrics();
+		const inputEl = this.options.getInputEl();
+		if (inputEl !== null) {
+			inputEl.readOnly = false;
+		}
 		this.options.setComposerOpen(false);
 		this.mobileComposerPhase = "closed";
 		this.options.syncRootState();
