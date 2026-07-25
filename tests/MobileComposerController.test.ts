@@ -260,6 +260,31 @@ test("clears the Capacitor keyboard dock source when the keyboard hides", () => 
 	assert.equal(layer?.attrs.get("data-knomo-composer-dock-source"), "fallback");
 });
 
+test("dismisses a visible mobile keyboard without closing the composer", () => {
+	const harness = createHarness();
+	harness.controller.open();
+	harness.win.flushAnimationFrames();
+	harness.win.dispatchKeyboardEvent("keyboardWillShow", 260);
+	harness.win.flushAnimationFrames();
+
+	assert.equal(harness.controller.dismissVisibleKeyboard(), true);
+	assert.equal(harness.input.blurCount, 1);
+	assert.equal(harness.getComposerOpen(), true);
+});
+
+test("leaves mobile back handling to the view when the keyboard is already hidden", () => {
+	const harness = createHarness();
+	harness.controller.open();
+	harness.win.flushAnimationFrames();
+	harness.win.dispatchKeyboardEvent("keyboardWillShow", 260);
+	harness.win.flushAnimationFrames();
+	harness.win.dispatchEvent("keyboardDidHide");
+	harness.win.flushAnimationFrames();
+
+	assert.equal(harness.controller.dismissVisibleKeyboard(), false);
+	assert.equal(harness.input.blurCount, 0);
+});
+
 test("waits for keyboardDidHide before completing a Capacitor keyboard dismissal", () => {
 	const harness = createHarness();
 	prepareComposerGeometry(harness, 800, 780);

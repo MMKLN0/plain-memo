@@ -2342,6 +2342,13 @@ body .workspace-leaf-content[data-type="knomo-view"] .knomo-plugin.is-resizing-s
 
 .knomo-plugin.is-layout-mobile .knomo-card-flow {
 	padding-bottom: calc(48px + 8px + env(safe-area-inset-bottom));
+	scrollbar-width: none;
+}
+
+.knomo-plugin.is-layout-mobile .knomo-card-flow::-webkit-scrollbar {
+	display: none;
+	width: 0;
+	height: 0;
 }
 
 .knomo-plugin.is-layout-mobile.is-composer-open .knomo-card-flow {
@@ -2655,7 +2662,7 @@ body .workspace-leaf-content[data-type="knomo-view"] .knomo-plugin.is-resizing-s
 
 .knomo-plugin .knomo-card.is-editing .knomo-composer {
 	min-height: 0;
-	margin: 8px 0 0;
+	margin: 0;
 	padding: 4px 0 0;
 	border: 0;
 	border-radius: 0;
@@ -2670,9 +2677,14 @@ body .workspace-leaf-content[data-type="knomo-view"] .knomo-plugin.is-resizing-s
 
 .knomo-plugin .knomo-card.is-editing .knomo-composer-input {
 	min-height: 96px;
+	max-height: none;
 	padding: 8px 0;
 	border-top: 1px solid var(--knomo-soft-border);
 	border-bottom: 1px solid var(--knomo-soft-border);
+}
+
+.knomo-plugin .knomo-card.is-editing > .knomo-card-head {
+	display: none;
 }
 
 .knomo-plugin .knomo-card .knomo-card-body.is-editing-hidden {
@@ -2687,6 +2699,20 @@ body .workspace-leaf-content[data-type="knomo-view"] .knomo-plugin.is-resizing-s
 	position: relative;
 	max-height: calc(var(--knomo-collapse-lines, 8) * 1.75em);
 	overflow: hidden;
+	-webkit-mask-image: linear-gradient(
+		to bottom,
+		#000 calc(100% - 0.35em),
+		transparent 100%
+	);
+	mask-image: linear-gradient(
+		to bottom,
+		#000 calc(100% - 0.35em),
+		transparent 100%
+	);
+}
+
+.knomo-plugin:not(.is-layout-mobile) .knomo-card.has-collapsed-memo {
+	padding-bottom: 8px;
 }
 
 .knomo-plugin .knomo-card-body.is-collapsed::after {

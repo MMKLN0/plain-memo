@@ -139,6 +139,19 @@ export class MobileComposerController {
 		return this.mobileComposerOpenScrollTop;
 	}
 
+	dismissVisibleKeyboard(): boolean {
+		if (
+			this.options.getLayout() !== "mobile"
+			|| !this.options.isComposerOpen()
+			|| !this.isKeyboardVisible()
+		) {
+			return false;
+		}
+		this.options.getInputEl()?.blur();
+		this.queueViewportUpdate();
+		return true;
+	}
+
 	clearOpenScrollTop(): void {
 		this.mobileComposerOpenScrollTop = null;
 	}
@@ -488,6 +501,13 @@ export class MobileComposerController {
 			keyboardHeight: this.mobileKeyboardHeight,
 			bottomOffset: this.mobileComposerBottomOffset,
 		};
+	}
+
+	private isKeyboardVisible(): boolean {
+		const win = this.options.getWindow();
+		return this.mobileKeyboardHeight > MOBILE_KEYBOARD_DOCK_STABLE_DELTA
+			|| (this.mobileCapacitorKeyboardHeight ?? 0) > MOBILE_KEYBOARD_DOCK_STABLE_DELTA
+			|| (this.getVirtualKeyboard(win)?.boundingRect?.height ?? 0) > MOBILE_KEYBOARD_DOCK_STABLE_DELTA;
 	}
 
 	private isSameKeyboardDismissSample(

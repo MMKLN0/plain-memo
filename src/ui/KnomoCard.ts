@@ -135,6 +135,7 @@ function renderMemoCollapseControl(card: HTMLElement, memo: MemoRecord, threshol
 	}
 	if (lineCount <= threshold) return;
 	body.addClass(expanded ? "is-expanded" : "is-collapsed");
+	card.addClass(expanded ? "has-expanded-memo" : "has-collapsed-memo");
 	card.style?.setProperty("--knomo-collapse-lines", String(threshold));
 	card.createEl("button", {
 		cls: "knomo-card-collapse-toggle",

@@ -944,12 +944,28 @@ export class KnomoView extends ItemView {
 		this.registerDomEvent(this.containerEl.win, "focus", () => this.handleLocalDateChange());
 		this.registerDomEvent(this.containerEl.win, "orientationchange", () => this.closeTimeBuoyPicker(false));
 		const handleMobileBack = (event: Event): void => {
-			if (this.timeBuoyPickerState === null) {
+			if (this.currentLayout !== "mobile") {
+				return;
+			}
+			if (this.timeBuoyPickerState !== null) {
+				event.preventDefault();
+				event.stopPropagation();
+				this.closeTimeBuoyPicker(true);
+				return;
+			}
+			if (!this.composerOpen) {
 				return;
 			}
 			event.preventDefault();
 			event.stopPropagation();
-			this.closeTimeBuoyPicker(true);
+			if (this.mobileComposerController.dismissVisibleKeyboard()) {
+				return;
+			}
+			if (this.editingMemo !== null) {
+				this.cancelEditing();
+				return;
+			}
+			this.closeComposerKeepingDraft();
 		};
 		this.containerEl.doc.addEventListener("backbutton", handleMobileBack, { capture: true });
 		this.register(() => this.containerEl.doc.removeEventListener("backbutton", handleMobileBack, { capture: true }));
@@ -2819,6 +2835,8 @@ export class KnomoView extends ItemView {
 			body.toggleClass("is-collapsed", !expanded);
 			body.toggleClass("is-expanded", expanded);
 		}
+		card?.toggleClass("has-collapsed-memo", !expanded);
+		card?.toggleClass("has-expanded-memo", expanded);
 		sourceEl.setText(expanded ? t("card.collapse") : t("card.expand"));
 		sourceEl.setAttr("aria-expanded", expanded ? "true" : "false");
 		this.containerEl.win.requestAnimationFrame(() => this.syncMobileFloatingCollapseControls());
@@ -3936,6 +3954,9 @@ export class KnomoView extends ItemView {
 		if (this.editingMemo === null) {
 			return;
 		}
+		if (this.currentLayout === "mobile") {
+			this.inputEl?.blur();
+		}
 		this.clearComposerMode();
 		if (this.currentLayout === "mobile") {
 			this.closeMobileComposerKeepingDraft();
@@ -4594,12 +4615,12 @@ export class KnomoView extends ItemView {
 		this.timeBuoyMonthStatusEl?.setText("");
 		this.composerEl?.removeClass("is-time-buoy-picker-open");
 		this.timeBuoyButtonEl?.setAttr("aria-expanded", "false");
-		if (!restoreFocus) {
+		if (!restoreFocus || state?.mobile === true) {
 			return;
 		}
 		if (focusTarget === "input") {
 			this.focusComposerInputNow();
-		} else if (source === "button" && this.currentLayout !== "mobile") {
+		} else if (source === "button") {
 			this.timeBuoyButtonEl?.focus();
 		} else {
 			this.focusComposerInputNow();
@@ -5013,7 +5034,9 @@ export class KnomoView extends ItemView {
 			return;
 		}
 		const minHeight = this.currentLayout === "mobile" ? 150 : 48;
-		const maxHeight = this.currentLayout === "mobile" ? this.getMobileMaxInputHeight() : 480;
+		const maxHeight = this.currentLayout === "mobile"
+			? this.getMobileMaxInputHeight()
+			: this.editingMemo === null ? 480 : Number.POSITIVE_INFINITY;
 		this.inputEl.setCssProps({ "--knomo-composer-input-height": "auto" });
 		const nextHeight = Math.min(maxHeight, Math.max(minHeight, this.inputEl.scrollHeight));
 		this.inputEl.setCssProps({
@@ -5606,7 +5629,7 @@ export class KnomoView extends ItemView {
 		}
 		const fab = this.containerEl.doc.querySelector<HTMLElement>(".knomo-mobile-create-fab");
 		const fabTop = fab?.getBoundingClientRect().top ?? this.containerEl.win.innerHeight - 16;
-		const bottom = Math.max(12, this.containerEl.win.innerHeight - fabTop + 8);
+		const bottom = Math.max(12, this.containerEl.win.innerHeight - fabTop + 20);
 		candidate.button.addClass("is-mobile-floating");
 		candidate.button.style.setProperty("--knomo-mobile-floating-collapse-bottom", `${Math.round(bottom)}px`);
 	}
