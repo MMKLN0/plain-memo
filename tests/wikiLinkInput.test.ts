@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { getTagQueryAtCursor } from "../src/utils/composerInput";
 import {
 	completeWikiLinkTriggerAtCursor,
+	getEmptyWikiLinkBackspacePatch,
 	getWikiLinkFileSuggestions,
 	getWikiLinkRangeAtCursor,
 	isKnomoInternalWikiLinkCandidate,
@@ -26,6 +27,14 @@ test("normalizes full-width WikiLink trigger", () => {
 
 test("does not complete an already completed WikiLink shell again", () => {
 	assert.equal(completeWikiLinkTriggerAtCursor("[[]]", 2), null);
+});
+
+test("removes an empty WikiLink shell as a pair when backspacing inside it", () => {
+	assert.deepEqual(getEmptyWikiLinkBackspacePatch("before [[]] after", 9), {
+		value: "before  after",
+		cursor: 7,
+	});
+	assert.equal(getEmptyWikiLinkBackspacePatch("[[note]]", 2), null);
 });
 
 test("detects active WikiLink shell at the cursor", () => {

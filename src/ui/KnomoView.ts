@@ -29,6 +29,7 @@ import {
 	replaceTimeBuoyTrigger,
 } from "../utils/timeBuoyComposer";
 import { stripTrailingWikiLink, withMemoIdAlias } from "../utils/references";
+import { parseMemoTags } from "../utils/markdown";
 import { formatServiceError, formatSettingsText } from "../utils/serviceText";
 import { getComposerToolButtonRoute } from "./KnomoActionRouter";
 import type { MemoAction, TrashAction } from "./KnomoActionDispatch";
@@ -93,6 +94,7 @@ import {
 } from "./KnomoSidebar";
 import { KnomoTagSuggest } from "./KnomoTagSuggest";
 import { KnomoWikiLinkSuggest } from "./KnomoWikiLinkSuggest";
+import { getEmptyWikiLinkBackspacePatch } from "../utils/wikiLinkInput";
 import type { MarkdownRenderPriority } from "./MarkdownRenderQueue";
 import { MemoMarkdownRenderer } from "./MemoMarkdownRenderer";
 import { getMarkdownInternalLinkInfo } from "./MarkdownInternalLink";
@@ -265,6 +267,7 @@ export class KnomoView extends ItemView {
 	private cardFlowEl: HTMLElement | null = null;
 	private trashCountEls: HTMLElement[] = [];
 	private inputEl: HTMLTextAreaElement | null = null;
+	private tagChipListEl: HTMLElement | null = null;
 	private timeBuoyButtonEl: HTMLButtonElement | null = null;
 	private timeBuoyMonthStatusEl: HTMLElement | null = null;
 	private timeBuoyPickerEl: HTMLElement | null = null;
@@ -285,6 +288,7 @@ export class KnomoView extends ItemView {
 	private statusEl: HTMLElement | null = null;
 	private referencePreviewEl: HTMLElement | null = null;
 	private composerEl: HTMLElement | null = null;
+	private composerHomeEl: HTMLElement | null = null;
 	private composerBarEl: HTMLElement | null = null;
 	private desktopSearchInputEl: HTMLInputElement | null = null;
 	private compactInlineSearchInputEl: HTMLInputElement | null = null;
@@ -1156,7 +1160,8 @@ export class KnomoView extends ItemView {
 		const contentColumn = main.createDiv({ cls: "knomo-content-column" });
 		this.renderDesktopTopbar(contentColumn);
 		this.renderScopePopover(contentColumn);
-		this.renderComposer(contentColumn);
+		this.composerHomeEl = contentColumn.createDiv({ cls: "knomo-composer-home" });
+		this.renderComposer(this.composerHomeEl);
 		this.cardFlowEl = contentColumn.createDiv({
 			cls: "knomo-card-flow",
 		});
@@ -1180,6 +1185,7 @@ export class KnomoView extends ItemView {
 		this.registerDomEvent(root, "click", (event) => {
 			void this.handleRootClick(event);
 		});
+		this.registerDomEvent(root, "dblclick", (event) => this.handleMemoCardDoubleClick(event));
 		this.registerDomEvent(root, "keydown", (event) => {
 			void this.handleRootKeydown(event);
 		});
@@ -1268,6 +1274,7 @@ export class KnomoView extends ItemView {
 		});
 		this.composerEl = composer.composerEl;
 		this.inputEl = composer.inputEl;
+		this.tagChipListEl = composer.tagChipListEl;
 		this.timeBuoyButtonEl = composer.timeBuoyButtonEl;
 		this.timeBuoyMonthStatusEl = composer.timeBuoyMonthStatusEl;
 		this.referencePreviewEl = composer.referencePreviewEl;
@@ -1327,6 +1334,10 @@ export class KnomoView extends ItemView {
 			if (this.wikiLinkSuggest?.handleKeydown(event)) {
 				return;
 			}
+			if (event.key === "Backspace" && !event.isComposing && this.removeEmptyWikiLinkShell()) {
+				event.preventDefault();
+				return;
+			}
 			if (this.currentLayout === "mobile") {
 				return;
 			}
@@ -1352,6 +1363,7 @@ export class KnomoView extends ItemView {
 		this.registerDomEvent(this.sendButtonEl, "mousedown", (event) => {
 			this.handleSendPointerDown(event);
 		});
+		this.syncRecognizedTagChips();
 		this.updateSendButtonState();
 	}
 
@@ -2809,6 +2821,7 @@ export class KnomoView extends ItemView {
 		}
 		sourceEl.setText(expanded ? t("card.collapse") : t("card.expand"));
 		sourceEl.setAttr("aria-expanded", expanded ? "true" : "false");
+		this.containerEl.win.requestAnimationFrame(() => this.syncMobileFloatingCollapseControls());
 	}
 
 	private renderTrashMemoCard(memo: MemoRecord, generation: number, renderIndex: number): void {
@@ -3945,12 +3958,15 @@ export class KnomoView extends ItemView {
 		if (this.inputEl !== null) {
 			this.inputEl.value = "";
 		}
+		this.syncRecognizedTagChips();
+		this.resizeInput();
 		this.updateStatus("", false);
 		this.syncUiChrome();
 	}
 
 	private clearComposerContext(): void {
 		this.closeTimeBuoyPicker(false);
+		this.restoreDesktopComposerHome();
 		this.editingMemo = null;
 		this.quoteSourceMemoId = null;
 		this.quoteReferenceText = null;
@@ -3966,7 +3982,9 @@ export class KnomoView extends ItemView {
 		if (this.inputEl !== null) {
 			this.inputEl.value = memo.contentSnapshot;
 		}
+		this.syncRecognizedTagChips();
 		this.openComposer();
+		this.mountDesktopComposerInEditingCard(memo.id);
 		this.resizeInput();
 		this.updateStatus("", false);
 		this.syncComposerMode();
@@ -3980,6 +3998,7 @@ export class KnomoView extends ItemView {
 		this.quoteReferenceText = referenceText;
 		this.quoteMarkdownText = formatMarkdownQuoteDraft(memo.contentSnapshot);
 		this.openComposer();
+		this.syncRecognizedTagChips();
 		const cursor = this.inputEl?.value.length ?? 0;
 		this.inputEl?.setSelectionRange(cursor, cursor);
 		this.resizeInput();
@@ -4117,6 +4136,10 @@ export class KnomoView extends ItemView {
 			}
 			return true;
 		}
+		if (action === "insert-wiki-link") {
+			this.insertWikiLinkShell();
+			return true;
+		}
 		if (action === "insert-image") {
 			this.nativeImagePickerController.open();
 			return true;
@@ -4175,7 +4198,7 @@ export class KnomoView extends ItemView {
 		const mobile = this.currentLayout === "mobile";
 		const state: OpenTimeBuoyPickerState = {
 			source,
-			phase: mobile ? "preparing" : "open",
+			phase: "open",
 			savedValue: input.value,
 			selectionEnd: input.selectionEnd,
 			triggerStart,
@@ -4187,13 +4210,55 @@ export class KnomoView extends ItemView {
 		this.timeBuoyPickerState = state;
 		this.composerEl?.addClass("is-time-buoy-picker-open");
 		this.renderTimeBuoyPicker();
-		if (mobile) {
-			this.timeBuoyPickerKeyboardWaitCancel = this.mobileComposerController.waitForKeyboardDismissal(() => {
-				this.timeBuoyPickerKeyboardWaitCancel = null;
-				this.revealMobileTimeBuoyPicker(state);
-			});
-			input.blur();
+	}
+
+	private handleMemoCardDoubleClick(event: MouseEvent): void {
+		const target = event.target as Element | null;
+		if (target === null || !target.instanceOf(Element) || this.isSaving) {
+			return;
 		}
+		if (target.closest("button, a, input, textarea, .tag, [data-knomo-card-image]") !== null) {
+			return;
+		}
+		const content = target.closest<HTMLElement>(".knomo-card-content");
+		const card = content?.closest<HTMLElement>(".knomo-card") ?? null;
+		const memoId = card?.getAttr("data-memo-id") ?? null;
+		if (memoId === null) {
+			return;
+		}
+		const memo = this.findMemoById(memoId);
+		if (memo === null) {
+			return;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		this.startEditing(memo);
+	}
+
+	private mountDesktopComposerInEditingCard(memoId: string): void {
+		if (this.currentLayout === "mobile" || this.composerEl === null || this.cardFlowEl === null) {
+			return;
+		}
+		const card = this.getDirectCardElements(this.cardFlowEl).find((item) => item.getAttr("data-memo-id") === memoId) ?? null;
+		const body = card?.find(".knomo-card-body") ?? null;
+		if (card === null || body === null) {
+			return;
+		}
+		card.insertBefore(this.composerEl, body);
+		body.addClass("is-editing-hidden");
+		card.addClass("is-editing");
+	}
+
+	private restoreDesktopComposerHome(): void {
+		const composer = this.composerEl;
+		const home = this.composerHomeEl;
+		if (composer === null || home === null || composer.parentElement === home) {
+			return;
+		}
+		const card = composer.closest<HTMLElement>(".knomo-card");
+		card?.find(".knomo-card-body")?.removeClass("is-editing-hidden");
+		card?.removeClass("is-editing");
+		home.appendChild(composer);
 	}
 
 	private renderTimeBuoyPicker(): void {
@@ -4708,6 +4773,39 @@ export class KnomoView extends ItemView {
 		dispatchTextareaInputEvent(this.inputEl);
 	}
 
+	private insertWikiLinkShell(): void {
+		if (this.inputEl === null) {
+			return;
+		}
+		const input = this.inputEl;
+		const start = input.selectionStart;
+		const end = input.selectionEnd;
+		const selected = input.value.slice(start, end);
+		const content = selected.length > 0 ? selected : "";
+		const replacement = `[[${content}]]`;
+		input.value = `${input.value.slice(0, start)}${replacement}${input.value.slice(end)}`;
+		const cursor = start + 2 + content.length;
+		try {
+			input.focus({ preventScroll: true });
+		} catch {
+			input.focus();
+		}
+		input.setSelectionRange(cursor, cursor);
+		dispatchTextareaInputEvent(input);
+	}
+
+	private removeEmptyWikiLinkShell(): boolean {
+		if (this.inputEl === null || this.inputEl.selectionStart !== this.inputEl.selectionEnd) {
+			return false;
+		}
+		const patch = getEmptyWikiLinkBackspacePatch(this.inputEl.value, this.inputEl.selectionStart);
+		if (patch === null) {
+			return false;
+		}
+		this.applyTextareaPatch(patch);
+		return true;
+	}
+
 	private applyListFormat(type: "bullet" | "ordered"): void {
 		if (this.inputEl === null) {
 			return;
@@ -4888,12 +4986,26 @@ export class KnomoView extends ItemView {
 
 	private syncInputState(): void {
 		this.draftContent = this.inputEl?.value ?? "";
+		this.syncRecognizedTagChips();
 		this.updateSendButtonState();
 		if (this.currentLayout === "mobile") {
 			this.scheduleMobileComposerResize();
 			return;
 		}
 		this.resizeInput();
+	}
+
+	private syncRecognizedTagChips(): void {
+		const container = this.tagChipListEl;
+		if (container === null) {
+			return;
+		}
+		const tags = parseMemoTags(this.inputEl?.value ?? "");
+		container.empty();
+		container.toggleClass("is-visible", tags.length > 0);
+		for (const tag of tags) {
+			container.createSpan({ cls: "knomo-composer-tag-chip", text: `#${tag}` });
+		}
 	}
 
 	private resizeInput(): void {
@@ -5435,6 +5547,7 @@ export class KnomoView extends ItemView {
 	}
 
 	private handleCardFlowScroll(): void {
+		this.syncMobileFloatingCollapseControls();
 		if (this.activeNav === "time-buoy") {
 			const cardFlow = this.cardFlowEl;
 			if (
@@ -5453,6 +5566,49 @@ export class KnomoView extends ItemView {
 			onRenderNextBatch: (generation) => this.renderNextCardBatch(generation),
 			requestHydration: () => this.mobileMemoHydrator.requestCardFlowHydration(),
 		});
+	}
+
+	private syncMobileFloatingCollapseControls(): void {
+		const flow = this.cardFlowEl;
+		if (flow === null) {
+			return;
+		}
+		const buttons = Array.from(flow.querySelectorAll<HTMLElement>(".knomo-card-collapse-toggle"));
+		for (const button of buttons) {
+			button.removeClass("is-mobile-floating");
+			button.style.removeProperty("--knomo-mobile-floating-collapse-bottom");
+		}
+		if (this.currentLayout !== "mobile") {
+			return;
+		}
+		const flowRect = flow.getBoundingClientRect();
+		const candidate = buttons
+			.map((button) => ({
+				button,
+				card: button.closest<HTMLElement>(".knomo-card"),
+			}))
+			.filter((item): item is { button: HTMLElement; card: HTMLElement } => {
+				if (item.card === null || item.button.getAttr("aria-expanded") !== "true") {
+					return false;
+				}
+				const cardRect = item.card.getBoundingClientRect();
+				const buttonRect = item.button.getBoundingClientRect();
+				return cardRect.top < flowRect.bottom && cardRect.bottom > flowRect.top && buttonRect.top > flowRect.bottom - 4;
+			})
+			.sort((left, right) => {
+				const center = (flowRect.top + flowRect.bottom) / 2;
+				const leftDistance = Math.abs((left.card.getBoundingClientRect().top + left.card.getBoundingClientRect().bottom) / 2 - center);
+				const rightDistance = Math.abs((right.card.getBoundingClientRect().top + right.card.getBoundingClientRect().bottom) / 2 - center);
+				return leftDistance - rightDistance;
+			})[0];
+		if (candidate === undefined) {
+			return;
+		}
+		const fab = this.containerEl.doc.querySelector<HTMLElement>(".knomo-mobile-create-fab");
+		const fabTop = fab?.getBoundingClientRect().top ?? this.containerEl.win.innerHeight - 16;
+		const bottom = Math.max(12, this.containerEl.win.innerHeight - fabTop + 8);
+		candidate.button.addClass("is-mobile-floating");
+		candidate.button.style.setProperty("--knomo-mobile-floating-collapse-bottom", `${Math.round(bottom)}px`);
 	}
 
 	private handleTrashRenderRequest(target: TrashMemoRenderTarget): void {

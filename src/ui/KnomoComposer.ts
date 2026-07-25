@@ -6,6 +6,7 @@ import { t } from "../i18n";
 export interface KnomoComposerElements {
 	composerEl: HTMLElement;
 	inputEl: HTMLTextAreaElement;
+	tagChipListEl: HTMLElement;
 	referencePreviewEl: HTMLElement;
 	composerBarEl: HTMLElement;
 	toolsEl: HTMLElement;
@@ -51,9 +52,14 @@ export function renderKnomoComposer(container: HTMLElement, options: RenderKnomo
 	inputEl.value = options.draftContent;
 
 	const referencePreviewEl = inputArea.createDiv({ cls: "knomo-reference-preview" });
+	const tagChipListEl = inputArea.createDiv({
+		cls: "knomo-composer-tag-chips",
+		attr: { "aria-live": "polite", "aria-atomic": "true" },
+	});
 	const composerBarEl = inputArea.createDiv({ cls: "knomo-composer-bar" });
 	const toolsEl = composerBarEl.createDiv({ cls: "knomo-tool-group" });
 	options.createIconButton(toolsEl, "hash", t("composer.insertTag"), "knomo-tool-button", "insert-tag", false);
+	options.createIconButton(toolsEl, "link", t("composer.insertWikiLink"), "knomo-tool-button", "insert-wiki-link", false);
 	options.createIconButton(toolsEl, "image", t("composer.insertImage"), "knomo-tool-button", "insert-image", false);
 	const timeBuoyButtonEl = options.timeBuoyEnabled === true
 		? options.createIconButton(toolsEl, KNOMO_TIME_BUOY_ICON, t("composer.addTimeBuoy"), "knomo-tool-button", "insert-time-buoy", true)
@@ -105,6 +111,7 @@ export function renderKnomoComposer(container: HTMLElement, options: RenderKnomo
 	return {
 		composerEl,
 		inputEl,
+		tagChipListEl,
 		referencePreviewEl,
 		composerBarEl,
 		toolsEl,

@@ -297,7 +297,7 @@ test("builds memo search text and all-memo loading flags", () => {
 	const searchText = buildMemoSearchText(memo);
 
 	assert.equal(searchText.includes("hello knomo"), true);
-	assert.equal(searchText.includes("2026-05-20 09:00:00"), true);
+	assert.equal(searchText.includes("2026-05-20 09:00"), true);
 	assert.equal(searchText.includes("project"), true);
 	assert.equal(searchText.includes("linked note"), true);
 	assert.equal(searchText.includes("clip.png"), true);

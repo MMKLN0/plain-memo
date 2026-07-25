@@ -1,7 +1,8 @@
 import { t } from "../i18n";
 
 export function formatMemoDisplayTime(value: string): string {
-	return value.replace("T", " ").replace(/\.\d{3}[+-]\d{2}:\d{2}$/, "");
+	const localTimestamp = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+	return localTimestamp === null ? value.replace("T", " ") : `${localTimestamp[1]} ${localTimestamp[2]}`;
 }
 
 export function formatOptionalMemoTime(value: string | undefined): string {

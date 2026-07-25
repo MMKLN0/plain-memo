@@ -114,6 +114,13 @@ test("continues and exits Markdown ordered lists", () => {
 	assert.equal(getListEnterPatch("- hello", 0, 7), null);
 });
 
+test("renumbers following ordered list items after inserting in the middle", () => {
+	assert.deepEqual(getListEnterPatch("1. first\n2. second\n3. third", 8, 8), {
+		value: "1. first\n2. \n3. second\n4. third",
+		cursor: 12,
+	});
+});
+
 test("continues Markdown task lists with unchecked tasks", () => {
 	assert.deepEqual(getListEnterPatch("- [ ] task", 10, 10), {
 		value: "- [ ] task\n- [ ] ",

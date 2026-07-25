@@ -38,6 +38,7 @@ export const en: Record<TranslationKey, string> = {
 	"composer.inputLabel": "Memo input",
 	"composer.placeholder": "What's on your mind...",
 	"composer.insertTag": "Insert tag",
+	"composer.insertWikiLink": "Insert note link",
 	"composer.insertImage": "Insert image",
 	"composer.addTimeBuoy": "Add Time buoy",
 	"composer.insertList": "Insert list",

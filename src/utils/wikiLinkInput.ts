@@ -48,6 +48,22 @@ export function completeWikiLinkTriggerAtCursor(value: string, cursor: number): 
 	};
 }
 
+/** Removes an empty WikiLink shell as one unit when backspacing from its cursor position. */
+export function getEmptyWikiLinkBackspacePatch(value: string, cursor: number): TextReplacement | null {
+	if (
+		cursor < WIKI_LINK_OPEN.length
+		|| value.slice(cursor - WIKI_LINK_OPEN.length, cursor) !== WIKI_LINK_OPEN
+		|| value.slice(cursor, cursor + WIKI_LINK_CLOSE.length) !== WIKI_LINK_CLOSE
+	) {
+		return null;
+	}
+	const from = cursor - WIKI_LINK_OPEN.length;
+	return {
+		value: `${value.slice(0, from)}${value.slice(cursor + WIKI_LINK_CLOSE.length)}`,
+		cursor: from,
+	};
+}
+
 export function getWikiLinkRangeAtCursor(value: string, cursor: number): WikiLinkRange | null {
 	if (cursor < 0 || cursor > value.length) {
 		return null;

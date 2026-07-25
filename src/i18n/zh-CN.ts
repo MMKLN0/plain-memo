@@ -36,6 +36,7 @@ export const zhCN = {
 	"composer.inputLabel": "输入 Memos 内容",
 	"composer.placeholder": "现在的想法是…",
 	"composer.insertTag": "插入标签",
+	"composer.insertWikiLink": "插入笔记链接",
 	"composer.insertImage": "插入图片",
 	"composer.addTimeBuoy": "添加时光浮标",
 	"composer.insertList": "插入列表",

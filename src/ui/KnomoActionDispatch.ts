@@ -1,4 +1,4 @@
-export type ComposerToolAction = "insert-tag" | "insert-image" | "insert-time-buoy" | "insert-list" | "insert-numbered-list";
+export type ComposerToolAction = "insert-tag" | "insert-wiki-link" | "insert-image" | "insert-time-buoy" | "insert-list" | "insert-numbered-list";
 export type MemoAction = "edit" | "reference" | "open-daily" | "copy-text" | "copy-link" | "delete";
 export type TrashAction = "restore" | "purge";
 export type KnomoSimpleAction =
@@ -148,6 +148,7 @@ export function getTrashActionDispatch(action: string | null): TrashActionDispat
 
 export function isComposerToolAction(action: string): action is ComposerToolAction {
 	return action === "insert-tag" ||
+		action === "insert-wiki-link" ||
 		action === "insert-image" ||
 		action === "insert-time-buoy" ||
 		action === "insert-list" ||

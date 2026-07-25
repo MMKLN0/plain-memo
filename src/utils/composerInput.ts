@@ -138,10 +138,12 @@ export function getListEnterPatch(value: string, start: number, end: number): Te
 	}
 	const insert = `\n${indent}${number + 1}. `;
 	const cursor = start + insert.length;
-	return {
-		value: `${value.slice(0, start)}${insert}${value.slice(end)}`,
+	return renumberFollowingOrderedList(
+		`${value.slice(0, start)}${insert}${value.slice(end)}`,
 		cursor,
-	};
+		indent,
+		number + 1,
+	);
 }
 
 export function getListEnterPatchAfterNativeNewline(value: string, start: number, end: number): TextReplacement | null {
@@ -189,10 +191,37 @@ export function getListEnterPatchAfterNativeNewline(value: string, start: number
 	}
 	const insert = `${indent}${number + 1}. `;
 	const cursor = start + insert.length;
-	return {
-		value: `${value.slice(0, start)}${insert}${value.slice(start)}`,
+	return renumberFollowingOrderedList(
+		`${value.slice(0, start)}${insert}${value.slice(start)}`,
 		cursor,
-	};
+		indent,
+		number + 1,
+	);
+}
+
+/** Keeps the Markdown source aligned with the ordered list the user sees while editing. */
+function renumberFollowingOrderedList(value: string, cursor: number, indent: string, currentNumber: number): TextReplacement {
+	const lines = value.split("\n");
+	let lineIndex = 0;
+	let offset = 0;
+	for (; lineIndex < lines.length; lineIndex += 1) {
+		const lineLength = lines[lineIndex]?.length ?? 0;
+		if (cursor <= offset + lineLength) {
+			break;
+		}
+		offset += lineLength + 1;
+	}
+	let nextNumber = currentNumber + 1;
+	for (let index = lineIndex + 1; index < lines.length; index += 1) {
+		const line = lines[index] ?? "";
+		const match = line.match(/^(\s*)(\d+)([.)])(\s+.*)?$/);
+		if (match === null || match[1] !== indent) {
+			break;
+		}
+		lines[index] = `${indent}${nextNumber}${match[3]}${match[4] ?? ""}`;
+		nextNumber += 1;
+	}
+	return { value: lines.join("\n"), cursor };
 }
 
 export function getListEnterPatchForNativeInput(

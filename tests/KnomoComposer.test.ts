@@ -38,11 +38,13 @@ test("renders composer input, tools, actions, and reference preview", async () =
 	assert.equal(elements.inputEl.getAttr("aria-labelledby"), "composer-input-label");
 	assert.deepEqual(elements.toolsEl.findAll("[data-action]").map((item) => item.getAttr("data-action")), [
 		"insert-tag",
+		"insert-wiki-link",
 		"insert-image",
 		"insert-time-buoy",
 		"insert-list",
 		"insert-numbered-list",
 	]);
+	assert.equal(elements.tagChipListEl.hasClass("knomo-composer-tag-chips"), true);
 	assert.equal(elements.timeBuoyButtonEl?.disabled, true);
 	assert.equal(elements.timeBuoyButtonEl?.getAttr("data-icon"), KNOMO_TIME_BUOY_ICON);
 	assert.equal(elements.timeBuoyButtonEl?.getAttr("aria-haspopup"), "dialog");
