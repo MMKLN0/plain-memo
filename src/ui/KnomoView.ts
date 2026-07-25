@@ -781,7 +781,7 @@ export class KnomoView extends ItemView {
 			registerBackdropClick: (element, handler) => {
 				this.registerDomEvent(element, "click", handler);
 			},
-			closeComposerKeepingDraft: () => this.closeComposerKeepingDraft(),
+			handleBackdropDismiss: () => this.handleMobileComposerBackdropDismiss(),
 			focusInputNow: (shouldResize, shouldQueueViewport) => {
 				this.focusComposerInputNow(shouldResize, shouldQueueViewport);
 			},
@@ -961,11 +961,7 @@ export class KnomoView extends ItemView {
 			if (this.mobileComposerController.dismissVisibleKeyboard()) {
 				return;
 			}
-			if (this.editingMemo !== null) {
-				this.cancelEditing();
-				return;
-			}
-			this.closeComposerKeepingDraft();
+			void this.saveInput();
 		};
 		this.containerEl.doc.addEventListener("backbutton", handleMobileBack, { capture: true });
 		this.register(() => this.containerEl.doc.removeEventListener("backbutton", handleMobileBack, { capture: true }));
@@ -3897,6 +3893,14 @@ export class KnomoView extends ItemView {
 			this.inputEl.value = this.draftContent;
 		}
 		this.mobileComposerController.closeKeepingDraft();
+	}
+
+	private handleMobileComposerBackdropDismiss(): void {
+		if (this.editingMemo !== null) {
+			void this.saveInput();
+			return;
+		}
+		this.closeComposerKeepingDraft();
 	}
 
 	private focusComposerInputSoon(): void {

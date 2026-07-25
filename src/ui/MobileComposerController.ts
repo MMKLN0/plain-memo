@@ -78,7 +78,7 @@ export interface MobileComposerControllerOptions {
 	setComposerOpen: (open: boolean) => void;
 	getCardFlowScrollTop: () => number | null;
 	registerBackdropClick: (element: HTMLElement, handler: (event: MouseEvent) => void) => void;
-	closeComposerKeepingDraft: () => void;
+	handleBackdropDismiss: () => void;
 	focusInputNow: (shouldResize?: boolean, shouldQueueViewport?: boolean) => void;
 	resizeInput: () => void;
 	syncRootState: () => void;
@@ -657,7 +657,7 @@ export class MobileComposerController {
 			this.mobileComposerContentEl = layer.contentEl;
 			this.options.registerBackdropClick(layer.backdropEl, (event) => {
 				if (event.target === layer.backdropEl) {
-					this.options.closeComposerKeepingDraft();
+					this.options.handleBackdropDismiss();
 				}
 			});
 		} else {

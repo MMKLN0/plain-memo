@@ -86,7 +86,7 @@ test("migrates monthly files, system folder, monthlyRef paths, exclude rule, and
 	assert.equal(vault.exists("Archive/Memos/_knomo-system/indexes/memo-index-2026-05.json"), true);
 	assert.equal(vault.exists("Archive/Memos/_knomo-system/indexes/time-buoy/time-buoy-2026-07.json"), true);
 	assert.equal(vault.exists("Memos/Memos-2026-05.md"), false);
-	assert.equal(vault.readText("Archive/Memos/Memos-2026-05.md").startsWith("<!-- knomo:monthly-archive\nKnomo monthly archive file"), true);
+	assert.equal(vault.readText("Archive/Memos/Memos-2026-05.md").startsWith("<!-- knomo:monthly-archive\nPlainMemo monthly archive file"), true);
 	const index = JSON.parse(vault.readText("Archive/Memos/_knomo-system/indexes/memo-index-2026-05.json")) as ReturnType<typeof createIndex>;
 	assert.equal(index.memos.memo1.monthlyRef.path, "Archive/Memos/Memos-2026-05.md");
 	assert.deepEqual(vault.config.userIgnoreFilters, ["Archive/Memos/", "Archive/Memos/_knomo-system/"]);

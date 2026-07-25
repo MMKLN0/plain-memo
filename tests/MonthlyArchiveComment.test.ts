@@ -9,8 +9,8 @@ test("creates monthly archive comments in the requested locale", async () => {
 	const english = ensureReadOnlyComment("# 2026-06", "en");
 	const chinese = ensureReadOnlyComment("# 2026-06", "zh-CN");
 
-	assert.equal(english.startsWith(`<!-- ${MONTHLY_ARCHIVE_MARKER}\nKnomo monthly archive file:`), true);
-	assert.equal(chinese.startsWith(`<!-- ${MONTHLY_ARCHIVE_MARKER}\nKnomo 月度归档文件：`), true);
+	assert.equal(english.startsWith(`<!-- ${MONTHLY_ARCHIVE_MARKER}\nPlainMemo monthly archive file:`), true);
+	assert.equal(chinese.startsWith(`<!-- ${MONTHLY_ARCHIVE_MARKER}\nPlainMemo 月度归档文件：`), true);
 });
 
 test("preserves existing localized and legacy comments without translation churn", async () => {

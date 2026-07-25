@@ -366,7 +366,7 @@ test("keeps the composer docked when a focused input receives no keyboard signal
 	assert.equal(harness.controller.getPhase(), "open");
 });
 
-test("delegates backdrop clicks back to the view close-draft path", () => {
+test("delegates backdrop clicks to the view dismissal policy", () => {
 	const harness = createHarness();
 	harness.controller.open();
 	const handler = harness.backdropHandlers[0];
@@ -374,7 +374,7 @@ test("delegates backdrop clicks back to the view close-draft path", () => {
 
 	handler.handler({ target: handler.element } as unknown as MouseEvent);
 
-	assert.equal(harness.closeDraftCalls, 1);
+	assert.equal(harness.backdropDismissCalls, 1);
 	assert.equal(harness.controller.getPhase(), "focusing");
 });
 
@@ -453,7 +453,7 @@ function createHarness(layout: "mobile" | "desktop-wide" = "mobile") {
 	let updateSendButtonCalls = 0;
 	let updateCancelEditButtonCalls = 0;
 	let focusCalls = 0;
-	let closeDraftCalls = 0;
+	let backdropDismissCalls = 0;
 	let closedCalls = 0;
 	const syncRootLayerOpenStates: boolean[] = [];
 	const backdropHandlers: Array<{ element: HTMLElement; handler: (event: MouseEvent) => void }> = [];
@@ -475,8 +475,8 @@ function createHarness(layout: "mobile" | "desktop-wide" = "mobile") {
 		registerBackdropClick: (element, handler) => {
 			backdropHandlers.push({ element, handler });
 		},
-		closeComposerKeepingDraft: () => {
-			closeDraftCalls += 1;
+		handleBackdropDismiss: () => {
+			backdropDismissCalls += 1;
 		},
 		focusInputNow: () => {
 			focusCalls += 1;
@@ -537,8 +537,8 @@ function createHarness(layout: "mobile" | "desktop-wide" = "mobile") {
 		get focusCalls() {
 			return focusCalls;
 		},
-		get closeDraftCalls() {
-			return closeDraftCalls;
+		get backdropDismissCalls() {
+			return backdropDismissCalls;
 		},
 		get closedCalls() {
 			return closedCalls;
