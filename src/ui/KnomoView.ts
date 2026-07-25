@@ -3350,7 +3350,7 @@ export class KnomoView extends ItemView {
 		const shouldCloseMobileSearch = this.currentLayout === "mobile" && this.mobileSearchPageOpen;
 		try {
 			if (action === "edit") {
-				this.startEditing(memo);
+				void this.switchToEditingMemo(memo);
 				this.syncCardMenuState();
 				return;
 			} else if (action === "reference") {
@@ -4020,6 +4020,21 @@ export class KnomoView extends ItemView {
 		this.updateCancelEditButtonState();
 	}
 
+	/** Saves the active desktop edit before moving the single composer to another card. */
+	private async switchToEditingMemo(memo: MemoRecord): Promise<void> {
+		if (this.isSaving || this.editingMemo?.id === memo.id) {
+			return;
+		}
+		if (this.editingMemo !== null) {
+			await this.saveInput();
+			// Keep the current card open if its content cannot be saved.
+			if (this.editingMemo !== null) {
+				return;
+			}
+		}
+		this.startEditing(memo);
+	}
+
 	private startReferenceMemo(memo: MemoRecord, referenceText: string): void {
 		this.editingMemo = null;
 		this.quoteSourceMemoId = memo.id;
@@ -4231,7 +4246,7 @@ export class KnomoView extends ItemView {
 		}
 		event.preventDefault();
 		event.stopPropagation();
-		this.startEditing(memo);
+		void this.switchToEditingMemo(memo);
 	}
 
 	private mountDesktopComposerInEditingCard(memoId: string): void {
