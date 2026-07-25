@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const TESTS_DIR = "tests";
-const COMPILED_TESTS_DIR = path.join(".tmp", "knomo-tests", "tests");
+const COMPILED_TESTS_DIR = path.join(".tmp", "plain-memo-tests", "tests");
 
 export function getCompiledTestFilesForSources(sourceFileNames: readonly string[], compiledTestsDir = COMPILED_TESTS_DIR): string[] {
 	return sourceFileNames

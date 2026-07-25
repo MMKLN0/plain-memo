@@ -4,40 +4,44 @@ English | [简体中文](./README.zh-CN.md)
 
 > An Obsidian Memos plugin that stores each memo as an independent Markdown file.
 
+Current stable release: [PlainMemo 2.1.0](https://github.com/MMKLN0/plain-memo/releases/tag/2.1.0)
+
 PlainMemo is an unofficial fork of [BanyanSo/knomo](https://github.com/BanyanSo/knomo), continued under the upstream MIT license. It is not an official release channel for the upstream project and does not imply upstream endorsement or support.
 
 PlainMemo keeps Knomo's card-based browsing, search, tags, links, review, and mobile input experience while making every card a self-contained Markdown file that remains useful outside Obsidian.
 
-## How this fork differs from upstream
+## How PlainMemo differs from upstream
 
-| Area | Upstream Knomo | This fork |
+| Area | Upstream Knomo | PlainMemo |
 | --- | --- | --- |
 | Storage unit | Memos in Daily Notes plus maintained monthly collections | One Markdown file per memo |
 | Organization | Depends on Daily Notes and monthly Memos files | Recursively scans one or more configured folders; Daily Notes are not required |
-| Filename | Carried by daily/monthly source files | `<first line>_YYMMDDHHmm.md`, with ` (2)`-style collision suffixes |
-| Content format | Upstream memo format and indexing workflow | First line is the title and remaining lines are the body; no YAML frontmatter or private markers |
-| Import | Based on Daily Notes/monthly files | Matching files in a scan folder are recognized without moving or rewriting them |
+| Filename | Carried by daily/monthly source files | `<first body line>_YYMMDDHHmm.md`, with ` (2)`-style collision suffixes |
+| Content format | Upstream memo format and indexing workflow | The entire memo is ordinary Markdown; there is no separate title field, YAML frontmatter, or private marker |
+| Import | Based on Daily Notes/monthly files | Prepares existing Markdown filenames in place and imports Flomo HTML/ZIP exports |
 | Monthly archives | Maintained automatically | Removed |
 
-This is an intentional storage-model change. Existing upstream Daily Notes and monthly Memos are not migrated automatically. Back up your vault before reorganizing files as described in [Import existing notes](#import-existing-notes).
+This is an intentional storage-model change. Existing upstream Daily Notes and monthly Memos are not split into standalone files automatically. Back up your Vault before reorganizing existing files.
 
 ## Features
 
 - Create, edit, delete, search, filter, and revisit standalone Markdown memos in a card flow.
-- Recursively scan multiple Vault-relative folders and choose a separate default folder for newly created cards.
+- Recursively scan multiple Vault-relative folders and choose a separate default folder for new memos.
 - Recognize `#tags` and Obsidian WikiLinks such as `[[Project note]]`.
-- Collapse long cards after a configurable line threshold.
 - Render Markdown lists, tasks, quotes, images, and links.
-- Optional Time buoy reminders from `@YYYY-MM-DD` in the memo body.
-- Desktop and mobile card browsing and composer experiences.
+- Collapse long cards after a configurable line threshold.
+- Prepare existing Markdown files by adding recognizable creation-time filename suffixes without rewriting their content.
+- Import Flomo HTML or ZIP exports while preserving memo timestamps, tags, web links, and optional attachments.
+- Use optional Time buoy reminders from `@YYYY-MM-DD` in the memo body.
+- Use desktop and mobile card browsing, editing, tag completion, and WikiLink insertion controls.
 
 ## File format
 
-A new memo:
+A memo whose body is:
 
 ```text
 An idea after finishing this book
-The body starts on the second line and may contain #reading and [[related notes]].
+The second line may contain #reading and [[related notes]].
 ```
 
 is stored as a file like:
@@ -46,39 +50,62 @@ is stored as a file like:
 Memos/An idea after finishing this book_2607250855.md
 ```
 
-- The first line is used as the card title and filename stem. It is ordinary text, not a required level-one heading.
-- The `_YYMMDDHHmm` suffix is the minute-level creation time, used for stable ordering and filename conflict avoidance.
+- PlainMemo has no separate title field. The first line remains part of the Markdown body and is displayed on the card.
+- When creating a memo, the first body line is sanitized and used only as the new filename stem.
+- The `_YYMMDDHHmm` suffix records minute-level creation time and provides stable ordering. Same-minute filename conflicts use ` (2)`, ` (3)`, and so on.
 - No YAML frontmatter is written; the Markdown file is the sole content source.
-- Renaming a file or changing its title manually is supported. The plugin reads the current path and content rather than maintaining a second copy of the title.
+- The filename itself is not rendered as an additional card title. Manual filename or body edits become the current source of truth.
 
 ## Installation
 
-This fork is not published in the Obsidian Community Plugins directory. Install it manually:
+PlainMemo is not currently published in the Obsidian Community Plugins directory.
 
-1. Download a compatible package from [Releases](https://github.com/MMKLN0/plain-memo/releases). If no release is available, run `npm install` and `npm run build` in a source checkout.
-2. Place `main.js`, `manifest.json`, and `styles.css` in `<vault>/.obsidian/plugins/plain-memo/`.
-3. Enable PlainMemo under Obsidian's Community plugins settings.
+### BRAT (recommended)
+
+1. Install and enable [BRAT](https://github.com/TfTHacker/obsidian42-brat) from Obsidian's Community Plugins directory.
+2. In BRAT settings, choose **Add Beta plugin** and enter `MMKLN0/plain-memo`.
+3. Enable PlainMemo in Obsidian's Community Plugins settings.
+
+BRAT installs and updates PlainMemo from the latest stable GitHub Release.
+
+### Manual installation
+
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/MMKLN0/plain-memo/releases/latest).
+2. Place the three files in `<vault>/.obsidian/plugins/plain-memo/`.
+3. Reload Obsidian and enable PlainMemo under Community Plugins.
 
 ## First-time setup
 
-Open PlainMemo settings and, under its standalone-card-files section:
+Open PlainMemo settings and find the standalone memo file section:
 
 1. Add one or more scan folders relative to the Vault root, for example `Memos` or `Inbox/Cards`.
-2. Choose a default save folder. New cards are written only there, and it is automatically included in the scan scope.
+2. Choose a default save folder. New memos are written there, and the folder is automatically included in the scan scope.
 3. Optionally adjust the long-card threshold (minimum 6 lines), mobile compact layout, and Time buoy reminders.
 
-No personal paths or folders are preconfigured. Until a scan folder is configured, existing Vault files are not treated as memos.
+No personal paths or folders are preconfigured. Until a scan folder is configured, existing Vault files are not treated as PlainMemo memos.
 
-## Import existing notes
+## Import existing Markdown files
 
-PlainMemo does not import or migrate files. It reads files that follow its convention:
+Each configured scan folder has an import button with the tooltip: "Add a timestamp suffix so PlainMemo can recognize these filenames."
 
-1. Put the notes in a configured scan folder; subfolders are supported.
-2. Name each file `<title>_YYMMDDHHmm.md`, for example `Weekend plans_2607250855.md`.
-3. Put the title on the first line and the body below it.
-4. Reopen PlainMemo or wait for the Vault file change to refresh the card flow.
+1. Add the folder containing the Markdown files to the scan scope.
+2. Click the import button on that folder's settings row and confirm the preview.
+3. PlainMemo renames unrecognized `.md` files from `<existing name>.md` to `<existing name>_YYMMDDHHmm.md` using the file's Vault creation time (`ctime`).
 
-For same-title notes created in the same minute, use a suffix such as `Weekend plans_2607250855 (2).md`. Markdown files outside this naming convention are ignored as cards and are never changed.
+Already recognized files are skipped. Markdown content is not changed, name collisions receive a numbered suffix, and renaming goes through Obsidian's file manager so Vault links can be updated.
+
+Files can also be prepared manually by using `<name>_YYMMDDHHmm.md` or `<name>_YYMMDDHHmm (2).md` inside a configured folder.
+
+## Import Flomo data
+
+PlainMemo settings also provide **Import Flomo data**:
+
+1. Select a Flomo `.html` or `.zip` export.
+2. Choose a destination folder inside the Vault.
+3. Keep the default option to skip `.m4a` voice attachments, or change the audio and image attachment options as needed.
+4. Review the detected memo and attachment counts, then start the import.
+
+Each Flomo memo becomes a standalone PlainMemo Markdown file. The original body, first line, timestamp, tags, and web links are preserved. Imported attachments are stored under `<destination>/flomo-attachments`. Repeated imports reuse matching content and attachments instead of creating unnecessary duplicates.
 
 ## Data and privacy
 
@@ -97,4 +124,4 @@ For local testing, copy `main.js`, `manifest.json`, and `styles.css` into the te
 
 ## Credits and license
 
-This repository is based on [BanyanSo/knomo](https://github.com/BanyanSo/knomo). Thanks to the upstream author for creating Knomo and releasing it under the MIT license. This fork retains the original copyright and license notices; see [LICENSE](LICENSE).
+This repository is based on [BanyanSo/knomo](https://github.com/BanyanSo/knomo). Thanks to the upstream author for creating Knomo and releasing it under the MIT license. PlainMemo retains the original copyright and license notices; see [LICENSE](LICENSE).
