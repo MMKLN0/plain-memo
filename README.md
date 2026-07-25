@@ -1,5 +1,7 @@
 # Knomo
 
+English | [简体中文](./README.zh-CN.md)
+
 > An Obsidian Memos plugin that stores each memo as an independent Markdown file.
 
 This is an unofficial fork of [BanyanSo/knomo](https://github.com/BanyanSo/knomo), continued under the upstream MIT license. It is not an official release channel for the upstream project and does not imply upstream endorsement or support.
