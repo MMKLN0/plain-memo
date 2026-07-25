@@ -6,6 +6,11 @@ export type MobileCompactMode = "auto" | "on" | "off";
 
 export interface KnomoSettings {
 	settingsVersion: number;
+	/** Vault-relative folders scanned recursively for standalone memo files. */
+	memoFolders?: string[];
+	/** The folder used when the composer creates a new memo. */
+	defaultMemoFolder?: string;
+	memoCollapseLineThreshold?: number;
 	dailyHeading: string;
 	dailyInsertPosition: DailyInsertPosition;
 	memoTimeFormat: MemoTimeFormat;

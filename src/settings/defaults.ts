@@ -13,6 +13,9 @@ import type { KnomoSettings } from "../types/settings";
 
 export const DEFAULT_KNOMO_SETTINGS: KnomoSettings = {
 	settingsVersion: SETTINGS_VERSION,
+	memoFolders: [],
+	defaultMemoFolder: "",
+	memoCollapseLineThreshold: 8,
 	dailyHeading: DEFAULT_DAILY_HEADING,
 	dailyInsertPosition: "bottom",
 	memoTimeFormat: DEFAULT_MEMO_TIME_FORMAT,

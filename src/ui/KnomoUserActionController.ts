@@ -53,6 +53,7 @@ interface KnomoUserActionControllerOptions {
 	closeDesktopSearch: () => void;
 	closeCompactSearch: () => void;
 	toggleCardMenu: (memoId: string | null) => void;
+	toggleMemoCollapse?: (memoId: string | null, sourceEl: HTMLElement | null) => void;
 	refreshRandomReunion: () => Promise<void>;
 	renderNextCardBatch: (generation: number) => void;
 	requestCardFlowHydration: () => void;
@@ -261,6 +262,9 @@ export class KnomoUserActionController {
 				return;
 			case "toggle-card-menu":
 				this.options.toggleCardMenu(memoId);
+				return;
+			case "toggle-memo-collapse":
+				this.options.toggleMemoCollapse?.(memoId, sourceEl);
 				return;
 			case "refresh-random-reunion":
 				await this.options.refreshRandomReunion();

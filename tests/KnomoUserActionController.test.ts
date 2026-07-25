@@ -209,6 +209,10 @@ test("handleAction dispatches every simple action to the expected view callbacks
 			memoId: "memo-1",
 			expected: ["toggle-card:memo-1"],
 		},
+		"toggle-memo-collapse": {
+			memoId: "memo-1",
+			expected: ["toggle-collapse:memo-1"],
+		},
 		"refresh-random-reunion": {
 			expected: ["refresh-random"],
 		},
@@ -477,6 +481,7 @@ function createHarness(overrides: Partial<HarnessState> = {}): {
 			closeDesktopSearch: () => calls.push("close-desktop-search"),
 			closeCompactSearch: () => calls.push("close-compact-search"),
 			toggleCardMenu: (memoId) => calls.push(`toggle-card:${memoId ?? ""}`),
+			toggleMemoCollapse: (memoId) => calls.push(`toggle-collapse:${memoId ?? ""}`),
 			refreshRandomReunion: async () => {
 				calls.push("refresh-random");
 			},

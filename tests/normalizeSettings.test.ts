@@ -45,12 +45,22 @@ test("normalizes invalid settings to safe defaults", async () => {
 	assert.equal(settings.managedObsidianExcludeRule, "Memos/");
 	assert.equal(settings.managedSystemFolderExcludeRule, undefined);
 	assert.deepEqual(settings.pinnedTags, ["project", "knomo"]);
+	assert.equal(settings.memoCollapseLineThreshold, DEFAULT_KNOMO_SETTINGS.memoCollapseLineThreshold);
 	assert.equal(isValidMonthlyMemoFileFormat("Memos-YYYY-MM.md"), true);
 	assert.equal(isValidMonthlyMemoFileFormat("Memos-YYYY-MM"), true);
 	assert.equal(isValidMonthlyMemoFileFormat("Memos.md"), false);
 	assert.equal(isValidMonthlyMemoFileFormat("Memos-YYYY-MM-YYYY-MM.md"), false);
 	assert.equal(isValidMonthlyMemoFileFormat("YYYY/Memos-YYYY-MM.md"), false);
 	assert.equal(isValidMonthlyMemoFileFormat("YYYY\\Memos-YYYY-MM.md"), false);
+});
+
+test("normalizes the memo collapse threshold to a whole number of at least six lines", async () => {
+	await ensureObsidianStub();
+	const { normalizeSettings } = await import("../src/settings/normalizeSettings");
+
+	assert.equal(normalizeSettings({ memoCollapseLineThreshold: 5 }).memoCollapseLineThreshold, 6);
+	assert.equal(normalizeSettings({ memoCollapseLineThreshold: 9.8 }).memoCollapseLineThreshold, 9);
+	assert.equal(normalizeSettings({ memoCollapseLineThreshold: Number.NaN }).memoCollapseLineThreshold, 8);
 });
 
 test("preserves safe historical monthly filename formats for explicit migration", async () => {

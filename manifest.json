@@ -3,7 +3,7 @@
 	"name": "Knomo",
 	"version": "1.2.1",
 	"minAppVersion": "1.11.0",
-	"description": "Capture local-first memos into daily notes and monthly archives.",
+	"description": "Capture and manage local-first memos as standalone Markdown files.",
 	"author": "BanyanSo",
 	"authorUrl": "",
 	"isDesktopOnly": false

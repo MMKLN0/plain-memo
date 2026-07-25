@@ -42,6 +42,8 @@ export interface RenderMemoCardOptions {
 	queueSourceReferenceMarkdown: (container: HTMLElement, text: string, sourcePath: string, generation: number) => void;
 	reusedBodyEl?: HTMLElement | null;
 	reusedImagesEl?: HTMLElement | null;
+	collapseLineThreshold?: number;
+	expanded?: boolean;
 }
 
 export interface RenderTrashMemoCardOptions {
@@ -111,9 +113,39 @@ export function renderKnomoMemoCard(container: HTMLElement, memo: MemoRecord, op
 			reusedImagesEl: options.reusedImagesEl,
 		});
 	}
+	renderMemoCollapseControl(
+		card,
+		memo,
+		options.collapseLineThreshold ?? 8,
+		options.expanded ?? false,
+		options.reusedBodyEl !== undefined && options.reusedBodyEl !== null,
+	);
 	renderCardMeta(card, memo, options);
 	renderMemoCardTimeBuoy(card, options.timeBuoy);
 	return card;
+}
+
+function renderMemoCollapseControl(card: HTMLElement, memo: MemoRecord, threshold: number, expanded: boolean, reused: boolean): void {
+	const lineCount = memo.contentSnapshot.replace(/\r\n?/g, "\n").split("\n").length;
+	const body = card.find(".knomo-card-body");
+	if (body === null) return;
+	if (reused) {
+		const removable = body as HTMLElement & { removeClass?: (...classes: string[]) => void };
+		removable.removeClass?.("is-collapsed", "is-expanded");
+	}
+	if (lineCount <= threshold) return;
+	body.addClass(expanded ? "is-expanded" : "is-collapsed");
+	card.style?.setProperty("--knomo-collapse-lines", String(threshold));
+	card.createEl("button", {
+		cls: "knomo-card-collapse-toggle",
+		text: expanded ? t("card.collapse") : t("card.expand"),
+		attr: {
+			type: "button",
+			"aria-expanded": expanded ? "true" : "false",
+			"data-action": "toggle-memo-collapse",
+			"data-memo-id": memo.id,
+		},
+	});
 }
 
 function renderMemoCardTime(container: HTMLElement, memo: MemoRecord, options: RenderMemoCardOptions): void {

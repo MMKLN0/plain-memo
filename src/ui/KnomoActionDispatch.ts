@@ -3,6 +3,7 @@ export type MemoAction = "edit" | "reference" | "open-daily" | "copy-text" | "co
 export type TrashAction = "restore" | "purge";
 export type KnomoSimpleAction =
 	| "toggle-card-menu"
+	| "toggle-memo-collapse"
 	| "refresh-random-reunion"
 	| "load-more"
 	| "load-more-mobile-search"
@@ -70,6 +71,7 @@ export function getKnomoActionDispatch(action: string | null): KnomoActionDispat
 	if (isComposerToolAction(action)) return { type: "composer-tool", action };
 	if (
 		action === "toggle-card-menu" ||
+		action === "toggle-memo-collapse" ||
 		action === "refresh-random-reunion" ||
 		action === "load-more" ||
 		action === "load-more-mobile-search" ||

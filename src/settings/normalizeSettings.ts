@@ -85,8 +85,19 @@ export function normalizeSettings(value: unknown): KnomoSettings {
 		DEFAULT_KNOMO_SETTINGS.monthlyMemoFileFormat,
 	);
 
+	const defaultMemoFolder = normalizeVaultPath(typeof merged.defaultMemoFolder === "string" ? merged.defaultMemoFolder : "");
+	const memoFolders = normalizeMemoFolders([
+		...(Array.isArray(merged.memoFolders) ? merged.memoFolders : []),
+		...(defaultMemoFolder.length > 0 ? [defaultMemoFolder] : []),
+	]);
 	return {
 		settingsVersion: SETTINGS_VERSION,
+		memoFolders,
+		defaultMemoFolder,
+		memoCollapseLineThreshold: Math.max(6, Math.floor(numberOrDefault(
+			merged.memoCollapseLineThreshold,
+			DEFAULT_KNOMO_SETTINGS.memoCollapseLineThreshold ?? 8,
+		))),
 		dailyHeading: stringOrDefault(merged.dailyHeading, DEFAULT_KNOMO_SETTINGS.dailyHeading),
 		dailyInsertPosition,
 		memoTimeFormat,
@@ -144,7 +155,17 @@ export function normalizeSettings(value: unknown): KnomoSettings {
 export function cloneSettings(settings: KnomoSettings): KnomoSettings {
 	return {
 		...settings,
+		memoFolders: [...(settings.memoFolders ?? [])],
 		legacyDailyHeadings: [...settings.legacyDailyHeadings],
 		pinnedTags: [...settings.pinnedTags],
 	};
+}
+
+function normalizeMemoFolders(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	const folders = [...new Set(value
+		.filter((item): item is string => typeof item === "string")
+		.map((item) => normalizeVaultPath(item))
+		.filter((item) => item.length > 0))].sort();
+	return folders.filter((folder) => !folders.some((candidate) => candidate !== folder && folder.startsWith(`${candidate}/`)));
 }

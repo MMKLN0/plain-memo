@@ -1,7 +1,7 @@
 {
 	"name": "knomo",
 	"version": "1.2.1",
-	"description": "Capture local-first memos into daily notes and monthly archives.",
+	"description": "Capture and manage local-first memos as standalone Markdown files.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",

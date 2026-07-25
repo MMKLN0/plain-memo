@@ -11,7 +11,7 @@ import type { RecordStatsView } from "../services/RecordStatsService";
 import type { ReferenceService } from "../services/ReferenceService";
 import type { SettingsService } from "../services/SettingsService";
 import type { ShuffleDayService } from "../services/ShuffleDayService";
-import type { SyncOrchestrator } from "../services/SyncOrchestrator";
+import type { FileMemoOrchestrator } from "../services/FileMemoOrchestrator";
 import type { TimeBuoyMaintenanceOutcome } from "../services/TimeBuoyService";
 import type { ScanDailyMemosResult } from "../services/MemoScanService";
 import { getRecentMemoPeriods } from "../services/memoQueries";
@@ -296,6 +296,7 @@ export class KnomoView extends ItemView {
 	private cardFlowError: string | null = null;
 	private allMemosLoadingPromise: Promise<boolean> | null = null;
 	private expandedTagGroups = new Set<string>();
+	private expandedMemoIds = new Set<string>();
 	private composerOpen = false;
 	private editingMemo: MemoRecord | null = null;
 	private quoteSourceMemoId: string | null = null;
@@ -496,7 +497,7 @@ export class KnomoView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
 		private readonly settingsService: SettingsService,
-		private readonly syncOrchestrator: SyncOrchestrator,
+		private readonly syncOrchestrator: FileMemoOrchestrator,
 		private readonly referenceService: ReferenceService,
 		private readonly randomReunionService: RandomReunionService,
 		private readonly shuffleDayService: ShuffleDayService,
@@ -845,6 +846,7 @@ export class KnomoView extends ItemView {
 				this.syncRootState();
 			},
 			toggleCardMenu: (memoId) => this.toggleCardMenu(memoId),
+			toggleMemoCollapse: (memoId, sourceEl) => this.toggleMemoCollapse(memoId, sourceEl),
 			refreshRandomReunion: () => this.randomReunionController.refresh(),
 			renderNextCardBatch: (generation) => this.renderNextCardBatch(generation),
 			requestCardFlowHydration: () => this.mobileMemoHydrator.requestCardFlowHydration(),
@@ -2772,6 +2774,8 @@ export class KnomoView extends ItemView {
 			queueSourceReferenceMarkdown: (content, text, sourcePath, renderGeneration) => {
 				this.memoMarkdownRenderer.queueSourceReferenceMarkdown(content, text, sourcePath, renderGeneration, surface);
 			},
+			collapseLineThreshold: this.settingsService.getSettings().memoCollapseLineThreshold ?? 8,
+			expanded: this.expandedMemoIds.has(memo.id),
 			reusedBodyEl,
 			reusedImagesEl,
 		});
@@ -2790,6 +2794,21 @@ export class KnomoView extends ItemView {
 			? t("timeBuoy.badge.single", { date: dates[0] })
 			: t("timeBuoy.badge.multiple", { count: dates.length });
 		return { status, label };
+	}
+
+	private toggleMemoCollapse(memoId: string | null, sourceEl: HTMLElement | null): void {
+		if (memoId === null || sourceEl === null) return;
+		const expanded = !this.expandedMemoIds.has(memoId);
+		if (expanded) this.expandedMemoIds.add(memoId);
+		else this.expandedMemoIds.delete(memoId);
+		const card = sourceEl.closest<HTMLElement>(".knomo-card");
+		const body = card?.querySelector<HTMLElement>(".knomo-card-body") ?? null;
+		if (body !== null) {
+			body.toggleClass("is-collapsed", !expanded);
+			body.toggleClass("is-expanded", expanded);
+		}
+		sourceEl.setText(expanded ? t("card.collapse") : t("card.expand"));
+		sourceEl.setAttr("aria-expanded", expanded ? "true" : "false");
 	}
 
 	private renderTrashMemoCard(memo: MemoRecord, generation: number, renderIndex: number): void {
@@ -5657,6 +5676,7 @@ export class KnomoView extends ItemView {
 	}
 
 	private getComposerSourcePath(): string | null {
+		if (this.editingMemo !== null) return this.editingMemo.dailyRef.path;
 		return getPreferredComposerSourcePath({
 			todayDailyNotePath: this.syncOrchestrator.getTodayDailyNotePath(),
 			activeFile: this.app.workspace.getActiveFile(),

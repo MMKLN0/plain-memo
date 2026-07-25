@@ -61,6 +61,9 @@ export function stripTrailingWikiLink(content: string): string {
 }
 
 export function withMemoIdAlias(referenceText: string, memoId: string): string {
+	if (memoId.includes("/") || memoId.toLowerCase().endsWith(".md")) {
+		return referenceText;
+	}
 	const normalizedText = referenceText.startsWith("![[") ? referenceText.slice(1) : referenceText;
 	if (!normalizedText.startsWith("[[") || !normalizedText.endsWith("]]")) {
 		return referenceText;

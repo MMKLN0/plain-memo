@@ -64,6 +64,45 @@ test("image-only memo cards do not render an empty card content container", asyn
 	assert.notEqual(images, null);
 });
 
+test("memo cards at the line threshold remain fully visible", async () => {
+	const { body, collapseToggle } = await renderMemoCard(
+		["one", "two", "three", "four", "five", "six"].join("\n"),
+		undefined,
+		{ collapseLineThreshold: 6 },
+	);
+
+	assert.equal(body?.hasClass("is-collapsed"), false);
+	assert.equal(collapseToggle, null);
+});
+
+test("memo cards over the line threshold are collapsed by default", async () => {
+	const { body, collapseToggle } = await renderMemoCard(
+		["one", "two", "three", "four", "five", "six", "seven"].join("\n"),
+		undefined,
+		{ collapseLineThreshold: 6 },
+	);
+
+	assert.equal(body?.hasClass("is-collapsed"), true);
+	assert.equal(body?.hasClass("is-expanded"), false);
+	assert.equal(collapseToggle?.getText(), "Expand");
+	assert.equal(collapseToggle?.getAttr("aria-expanded"), "false");
+	assert.equal(collapseToggle?.getAttr("data-action"), "toggle-memo-collapse");
+	assert.equal(collapseToggle?.getAttr("data-memo-id"), "memo-1");
+});
+
+test("expanded long memo cards render a collapse control", async () => {
+	const { body, collapseToggle } = await renderMemoCard(
+		["one", "two", "three", "four", "five", "six", "seven"].join("\n"),
+		undefined,
+		{ collapseLineThreshold: 6, expanded: true },
+	);
+
+	assert.equal(body?.hasClass("is-collapsed"), false);
+	assert.equal(body?.hasClass("is-expanded"), true);
+	assert.equal(collapseToggle?.getText(), "Collapse");
+	assert.equal(collapseToggle?.getAttr("aria-expanded"), "true");
+});
+
 test("memo card action menu includes open daily in the requested order", async () => {
 	await ensureObsidianStub();
 	const { renderKnomoMemoCard } = await import("../src/ui/KnomoCard");
@@ -94,7 +133,7 @@ test("memo card action menu includes open daily in the requested order", async (
 		"copy-link",
 		"delete",
 	]);
-	assert.equal(root.find("[data-memo-action='open-daily']")?.getText(), "Open daily note");
+	assert.equal(root.find("[data-memo-action='open-daily']")?.getText(), "Open note");
 	assert.equal(root.find(".knomo-card-word-count")?.getText(), "Words: 1");
 	assert.equal(root.find(".knomo-card-actions")?.getText().endsWith("DeleteWords: 1"), true);
 	const card = root.find("article");
@@ -102,7 +141,7 @@ test("memo card action menu includes open daily in the requested order", async (
 	assert.equal(card?.getAttr("tabindex"), null);
 	const timeButton = root.find("[data-memo-time-open='daily']");
 	assert.equal(timeButton?.getText(), "2026-06-02T00:00:00+08:00");
-	assert.equal(timeButton?.getAttr("aria-label"), "Open daily note");
+	assert.equal(timeButton?.getAttr("aria-label"), "Open note");
 	assert.equal(timeButton?.getAttr("data-memo-id"), "memo-1");
 	assert.equal(timeButton?.getAttr("data-random-reunion-card"), null);
 });
@@ -204,11 +243,13 @@ test("trash memo cards do not get daily note card-open attributes", async () => 
 async function renderMemoCard(
 	contentSnapshot: string,
 	preview?: MemoCardPreview,
+	collapseOptions: { collapseLineThreshold?: number; expanded?: boolean } = {},
 ): Promise<{
 	card: TestElement;
 	body: TestElement | null;
 	content: TestElement | null;
 	images: TestElement | null;
+	collapseToggle: TestElement | null;
 	queued: { container: HTMLElement; memo: MemoRecord; previewText: string } | null;
 }> {
 	await ensureObsidianStub();
@@ -239,6 +280,7 @@ async function renderMemoCard(
 		queueSourceReferenceMarkdown: () => {
 			throw new Error("Unexpected source reference render");
 		},
+		...collapseOptions,
 	});
 
 	const card = root.find("article");
@@ -250,6 +292,7 @@ async function renderMemoCard(
 		body: root.find(".knomo-card-body"),
 		content: root.find(".knomo-card-content"),
 		images: root.find(".knomo-card-images"),
+		collapseToggle: root.find(".knomo-card-collapse-toggle"),
 		queued,
 	};
 }
