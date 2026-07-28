@@ -78,11 +78,12 @@ BRAT installs and updates PlainMemo from the latest stable GitHub Release.
 
 Open PlainMemo settings and find the standalone memo file section:
 
-1. Add one or more scan folders relative to the Vault root, for example `Memos` or `Inbox/Cards`.
-2. Choose a default save folder. New memos are written there, and the folder is automatically included in the scan scope.
-3. Optionally adjust the long-card threshold (minimum 6 lines), mobile compact layout, and Time buoy reminders.
+1. Fresh installs use `plain_memo` as both the initial scan folder and default save folder. It is created when you save the first memo.
+2. Add, remove, or change scan folders relative to the Vault root, for example `Memos` or `Inbox/Cards`.
+3. Choose a default save folder. New memos are written there, and the folder is automatically included in the scan scope.
+4. Optionally adjust the long-card threshold (minimum 6 lines), mobile compact layout, and Time buoy reminders.
 
-No personal paths or folders are preconfigured. Until a scan folder is configured, existing Vault files are not treated as PlainMemo memos.
+No personal paths are preconfigured. PlainMemo only treats files inside the configured scan folders as memos.
 
 ## Import existing Markdown files
 

@@ -18,6 +18,10 @@ test("activates when the user types a hash or continues editing a tag", () => {
 	state.reset();
 	state.handleBeforeInput({ value: "memo #tag", selectionStart: 9, selectionEnd: 9, inputType: "insertText", data: "s" });
 	assert.equal(state.isEnabled(), true);
+
+	state.reset();
+	state.handleBeforeInput({ value: "memo #", selectionStart: 6, selectionEnd: 6, inputType: "insertCompositionText", data: "b" });
+	assert.equal(state.isEnabled(), true);
 });
 
 test("does not activate for Enter or a full pasted tag", () => {

@@ -18,6 +18,8 @@ interface TagSuggestion {
 export class KnomoTagSuggest extends AbstractInputSuggest<TagSuggestion> {
 	private tagsSnapshot: string[] | null = null;
 	private popoverRepositionFrameId: number | null = null;
+	private compositionRefreshFrameId: number | null = null;
+	private isRefreshingAfterInput = false;
 	private readonly activationState = new TagSuggestActivationState();
 
 	constructor(
@@ -39,6 +41,7 @@ export class KnomoTagSuggest extends AbstractInputSuggest<TagSuggestion> {
 		}, { capture: true });
 		this.inputEl.addEventListener("focus", () => this.reset(), { capture: true });
 		this.inputEl.addEventListener("click", () => this.reset(), { capture: true });
+		this.inputEl.addEventListener("input", () => this.refreshAfterInput());
 	}
 
 	open(): void {
@@ -49,6 +52,7 @@ export class KnomoTagSuggest extends AbstractInputSuggest<TagSuggestion> {
 
 	close(): void {
 		this.clearPopoverReposition();
+		this.clearCompositionRefresh();
 		this.showPositionedPopover();
 		super.close();
 		this.tagsSnapshot = null;
@@ -66,6 +70,43 @@ export class KnomoTagSuggest extends AbstractInputSuggest<TagSuggestion> {
 		const container = this.getSuggestionContainer();
 		if (container !== null) {
 			container.addClass("knomo-tag-suggest-popover");
+		}
+	}
+
+	/** Refreshes after an IME commits its final text, which may not emit a later normal input event. */
+	handleCompositionEnd(): void {
+		if (getTagQueryAtCursor(this.inputEl.value, this.inputEl.selectionStart) === null) {
+			this.close();
+			return;
+		}
+		this.activationState.enableExplicitly();
+		this.clearCompositionRefresh();
+		const win = this.inputEl.ownerDocument.defaultView;
+		if (win === null) {
+			this.refreshAfterInput();
+			return;
+		}
+		this.compositionRefreshFrameId = win.requestAnimationFrame(() => {
+			this.compositionRefreshFrameId = null;
+			this.refreshAfterInput();
+		});
+	}
+
+	/** Replays the input event after the textarea value has settled on desktop. */
+	private refreshAfterInput(): void {
+		if (this.isRefreshingAfterInput) {
+			return;
+		}
+		if (!this.activationState.isEnabled() || getTagQueryAtCursor(this.inputEl.value, this.inputEl.selectionStart) === null) {
+			this.close();
+			return;
+		}
+		this.isRefreshingAfterInput = true;
+		try {
+			const EventConstructor = (this.inputEl.win as Window & { Event: typeof Event }).Event;
+			this.inputEl.dispatchEvent(new EventConstructor("input", { bubbles: true }));
+		} finally {
+			this.isRefreshingAfterInput = false;
 		}
 	}
 
@@ -235,7 +276,20 @@ export class KnomoTagSuggest extends AbstractInputSuggest<TagSuggestion> {
 		const minLeft = viewportLeft + viewportMargin;
 		const maxLeft = Math.max(minLeft, viewportRight - viewportMargin - width);
 		const left = clamp(anchor.left, minLeft, maxLeft);
-		this.setPopoverOffsetPosition(container, left, anchor.bottom, width, 240);
+		const viewportTop = viewport ? Math.max(0, viewport.offsetTop) : 0;
+		const viewportBottom = viewport
+			? viewport.offsetTop + viewport.height
+			: win?.innerHeight ?? this.inputEl.ownerDocument.documentElement.clientHeight;
+		const gap = 8;
+		const availableBelow = Math.max(0, viewportBottom - anchor.bottom - viewportMargin);
+		const availableAbove = Math.max(0, anchor.top - viewportTop - viewportMargin);
+		const contentHeight = measureSuggestionContentHeight(this.inputEl, container, ".suggestion-item");
+		const placeAbove = contentHeight > availableBelow && availableAbove > availableBelow;
+		const availableHeight = placeAbove ? availableAbove : availableBelow;
+		const maxHeight = Math.min(240, availableHeight);
+		const height = Math.min(maxHeight, contentHeight > 0 ? contentHeight : maxHeight);
+		const top = placeAbove ? anchor.top - height - gap : anchor.bottom;
+		this.setPopoverOffsetPosition(container, left, top, width, maxHeight);
 		this.showPositionedPopover(container);
 	}
 
@@ -261,6 +315,14 @@ export class KnomoTagSuggest extends AbstractInputSuggest<TagSuggestion> {
 		}
 		win.cancelAnimationFrame(this.popoverRepositionFrameId);
 		this.popoverRepositionFrameId = null;
+	}
+
+	private clearCompositionRefresh(): void {
+		const win = this.inputEl.ownerDocument.defaultView;
+		if (win !== null && this.compositionRefreshFrameId !== null) {
+			win.cancelAnimationFrame(this.compositionRefreshFrameId);
+		}
+		this.compositionRefreshFrameId = null;
 	}
 
 	private getSuggestionContainer(): HTMLElement | null {

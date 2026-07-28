@@ -1332,6 +1332,7 @@ export class KnomoView extends ItemView {
 		});
 		this.registerDomEvent(this.inputEl, "compositionend", (event: CompositionEvent) => {
 			this.composerIsComposing = false;
+			this.tagSuggest?.handleCompositionEnd();
 			this.wikiLinkSuggest?.handleCompositionEnd();
 			this.handleTimeBuoyCompositionEnd(event);
 		});

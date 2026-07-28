@@ -430,10 +430,16 @@ export class KnomoWikiLinkSuggest {
 			popover.removeClass("knomo-link-suggest-positioning");
 			return;
 		}
-		const maxHeight = Math.max(72, Math.min(240, viewportBottom - anchor.bottom - VIEWPORT_MARGIN));
+		const availableBelow = Math.max(0, viewportBottom - anchor.bottom - VIEWPORT_MARGIN);
+		const availableAbove = Math.max(0, anchor.top - viewportTop - VIEWPORT_MARGIN);
+		const contentHeight = measureSuggestionContentHeight(this.inputEl, popover, ".knomo-link-suggest-item");
+		const placeAbove = contentHeight > availableBelow && availableAbove > availableBelow;
+		const availableHeight = placeAbove ? availableAbove : availableBelow;
+		const maxHeight = Math.min(240, availableHeight);
+		const height = Math.min(maxHeight, contentHeight > 0 ? contentHeight : maxHeight);
 		popover.setCssProps({
 			...popoverCssProps,
-			"--knomo-suggest-top": `${Math.round(anchor.bottom)}px`,
+			"--knomo-suggest-top": `${Math.round(placeAbove ? anchor.top - height - POPOVER_GAP : anchor.bottom)}px`,
 			"--knomo-suggest-max-height": `${Math.round(maxHeight)}px`,
 		});
 		popover.removeClass("knomo-link-suggest-positioning");

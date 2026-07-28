@@ -63,6 +63,17 @@ test("normalizes the memo collapse threshold to a whole number of at least six l
 	assert.equal(normalizeSettings({ memoCollapseLineThreshold: Number.NaN }).memoCollapseLineThreshold, 8);
 });
 
+test("uses plain_memo as the default scan and save folder for fresh installs", async () => {
+	await ensureObsidianStub();
+	const { normalizeSettings } = await import("../src/settings/normalizeSettings");
+
+	const settings = normalizeSettings({});
+
+	assert.deepEqual(settings.memoFolders, ["plain_memo"]);
+	assert.equal(settings.defaultMemoFolder, "plain_memo");
+	assert.equal(settings.monthlyMemoFolder, "plain_memo");
+});
+
 test("preserves safe historical monthly filename formats for explicit migration", async () => {
 	await ensureObsidianStub();
 	const { isValidMonthlyMemoFileFormat, normalizeSettings } = await import("../src/settings/normalizeSettings");
