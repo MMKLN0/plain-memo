@@ -1,390 +1,183 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import type { MemoLoadPage } from "../src/services/FileMemoOrchestrator";
 import type { MemoRecord } from "../src/types/memo";
 import { MobileMemoHydrator } from "../src/ui/MobileMemoHydrator";
 import type { MobileMemoHydrationRenderState } from "../src/ui/MobileMemoHydrator";
 
-test("schedules background hydration after the initial recent memo periods", () => {
-	const scheduler = new TestScheduler();
-	let beginCalls = 0;
-	const hydrator = new MobileMemoHydrator({
-		isMobile: () => true,
-		isLoading: () => false,
-		canHydrateCardFlow: () => true,
-		scheduleTask: (callback, delayMs) => scheduler.schedule(callback, delayMs),
-		cancelTask: (taskId) => scheduler.cancel(taskId),
-		listMemoIndexPeriods: () => [],
-		listMemosInPeriods: async () => [],
-		getMemos: () => [],
-		setMemos: () => {},
-		invalidateFilteredMemos: () => {},
-		captureRenderState: makeRenderState,
-		onStarted: () => {},
-		onPeriodHydrated: () => {},
-		onCompleted: () => {},
-		onFailed: () => {},
-		onSidebarRequested: () => {},
-		beginScheduledHydration: () => {
-			beginCalls += 1;
-		},
-		ensureAllMemosLoaded: () => {},
-	});
+test("schedules background hydration after the initial count-based load", () => {
+	const harness = createHarness(250);
+	harness.hydrator.setInitialLoadSuccess(harness.plan, 50);
+	harness.hydrator.schedule();
+	harness.hydrator.schedule();
 
-	hydrator.setInitialLoadSuccess(["2026-06", "2026-05"]);
-	hydrator.schedule();
-	hydrator.schedule();
+	assert.equal(harness.hydrator.getSnapshot().allMemosLoaded, false);
+	assert.equal(harness.hydrator.getSnapshot().loadedMemoCount, 50);
+	assert.equal(harness.hydrator.getSnapshot().totalMemoCount, 250);
+	assert.deepEqual(harness.scheduler.pendingDelays(), [1200]);
 
-	assert.equal(hydrator.getSnapshot().allMemosLoaded, false);
-	assert.equal(hydrator.getSnapshot().loadMode, "recent");
-	assert.deepEqual(Array.from(hydrator.getSnapshot().loadedMemoPeriods), ["2026-06", "2026-05"]);
-	assert.deepEqual(scheduler.pendingDelays(), [1200]);
-
-	scheduler.runNext();
-	assert.equal(beginCalls, 1);
+	harness.scheduler.runNext();
+	assert.equal(harness.beginCalls(), 1);
 });
 
-test("hydrates missing periods in background and batches memo commits", async () => {
-	const scheduler = new TestScheduler();
-	const recentMemo = makeMemo("recent", "2026-06-10T08:00:00+08:00");
-	const mayMemo = makeMemo("may", "2026-05-10T08:00:00+08:00");
-	const aprilMemo = makeMemo("april", "2026-04-10T08:00:00+08:00");
-	const marchMemo = makeMemo("march", "2026-03-10T08:00:00+08:00");
-	const februaryMemo = makeMemo("february", "2026-02-10T08:00:00+08:00");
-	const januaryMemo = makeMemo("january", "2026-01-10T08:00:00+08:00");
-	const updatedRecentMemo = { ...recentMemo, contentSnapshot: "updated" };
-	const deletedMemo = { ...makeMemo("deleted", "2026-04-10T08:00:00+08:00"), status: "deleted" as const };
-	let memos = [recentMemo];
-	const listedPeriods: string[] = [];
-	const batchStates: MobileMemoHydrationRenderState[] = [];
-	let completedState: MobileMemoHydrationRenderState | null = null;
-	let invalidateCalls = 0;
-	const hydrator = new MobileMemoHydrator({
-		isMobile: () => true,
-		isLoading: () => false,
-		canHydrateCardFlow: () => true,
-		scheduleTask: (callback, delayMs) => scheduler.schedule(callback, delayMs),
-		cancelTask: (taskId) => scheduler.cancel(taskId),
-		listMemoIndexPeriods: () => ["2026-06", "2026-05", "2026-04", "2026-03", "2026-02", "2026-01"],
-		listMemosInPeriods: async ([period]) => {
-			listedPeriods.push(period);
-			if (period === "2026-05") return [mayMemo, updatedRecentMemo];
-			if (period === "2026-04") return [aprilMemo, deletedMemo];
-			if (period === "2026-03") return [marchMemo];
-			if (period === "2026-02") return [februaryMemo];
-			return [januaryMemo];
-		},
-		getMemos: () => memos,
-		setMemos: (nextMemos) => {
-			memos = nextMemos;
-		},
-		invalidateFilteredMemos: () => {
-			invalidateCalls += 1;
-		},
-		captureRenderState: makeRenderState,
-		onStarted: () => {},
-		onPeriodHydrated: (state) => batchStates.push(state),
-		onCompleted: (state) => {
-			completedState = state;
-		},
-		onFailed: () => {},
-		onSidebarRequested: () => {},
-		beginScheduledHydration: () => {},
-		ensureAllMemosLoaded: () => {},
-	});
-	hydrator.setInitialLoadSuccess(["2026-06"]);
+test("hydrates fixed-size batches independent of memo dates", async () => {
+	const harness = createHarness(251);
+	harness.hydrator.setInitialLoadSuccess(harness.plan, 50);
 
-	const hydration = hydrator.start(false);
-	assert.deepEqual(scheduler.pendingDelays(), [180]);
-	await scheduler.runNextAndFlush();
-	assert.deepEqual(scheduler.pendingDelays(), [180]);
-	await scheduler.runNextAndFlush();
-	await scheduler.runNextAndFlush();
-	await scheduler.runNextAndFlush();
-	await scheduler.runNextAndFlush();
+	const hydration = harness.hydrator.start(false);
+	for (let index = 0; index < 3; index += 1) await harness.scheduler.runNextAndFlush();
+
 	assert.equal(await hydration, true);
-
-	assert.deepEqual(listedPeriods, ["2026-05", "2026-04", "2026-03", "2026-02", "2026-01"]);
-	assert.deepEqual(memos.map((memo) => memo.id), ["recent", "may", "april", "march", "february", "january"]);
-	assert.equal(memos[0].contentSnapshot, "updated");
-	assert.equal(batchStates.length, 1);
-	assert.notEqual(completedState, null);
-	assert.equal(invalidateCalls, 2);
-	assert.equal(hydrator.getSnapshot().allMemosLoaded, true);
-	assert.equal(hydrator.getSnapshot().loadMode, "all");
+	assert.deepEqual(harness.pageRequests, [
+		{ offset: 50, limit: 100 },
+		{ offset: 150, limit: 100 },
+		{ offset: 250, limit: 100 },
+	]);
+	assert.equal(harness.batchStates.length, 2);
+	assert.equal(harness.completedCalls(), 1);
+	assert.equal(harness.hydrator.getSnapshot().loadedMemoCount, 251);
+	assert.equal(harness.hydrator.getSnapshot().allMemosLoaded, true);
 });
 
-test("card-flow and sidebar requests switch hydration to fast mode", async () => {
-	const scheduler = new TestScheduler();
-	let ensureCalls = 0;
-	let sidebarRenderCalls = 0;
-	const hydrator = new MobileMemoHydrator({
-		isMobile: () => true,
-		isLoading: () => false,
-		canHydrateCardFlow: () => true,
-		scheduleTask: (callback, delayMs) => scheduler.schedule(callback, delayMs),
-		cancelTask: (taskId) => scheduler.cancel(taskId),
-		listMemoIndexPeriods: () => ["2026-05"],
-		listMemosInPeriods: async () => [],
-		getMemos: () => [],
-		setMemos: () => {},
-		invalidateFilteredMemos: () => {},
-		captureRenderState: makeRenderState,
-		onStarted: () => {},
-		onPeriodHydrated: () => {},
-		onCompleted: () => {},
-		onFailed: () => {},
-		onSidebarRequested: () => {
-			sidebarRenderCalls += 1;
-		},
-		beginScheduledHydration: () => {},
-		ensureAllMemosLoaded: () => {
-			ensureCalls += 1;
-		},
-	});
+test("fast mode removes the delay between count batches", async () => {
+	const harness = createHarness(220);
+	harness.hydrator.setInitialLoadSuccess(harness.plan, 20);
+	const hydration = harness.hydrator.start(true);
 
-	hydrator.requestCardFlowHydration();
-	assert.equal(hydrator.getSnapshot().fastMode, true);
-	assert.equal(hydrator.getSnapshot().loadMode, "hydrating");
-	assert.equal(hydrator.getSnapshot().renderNextBatchAfterHydration, true);
-	assert.equal(ensureCalls, 1);
-	hydrator.consumeRenderNextBatchRequest();
-	assert.equal(hydrator.getSnapshot().renderNextBatchAfterHydration, false);
-
-	const hydration = hydrator.start(true);
-	assert.deepEqual(scheduler.pendingDelays(), [0]);
-	await scheduler.runNextAndFlush();
-	assert.equal(await hydration, true);
-
-	const sidebarHydrator = new MobileMemoHydrator({
-		isMobile: () => true,
-		isLoading: () => false,
-		canHydrateCardFlow: () => true,
-		scheduleTask: (callback, delayMs) => scheduler.schedule(callback, delayMs),
-		cancelTask: (taskId) => scheduler.cancel(taskId),
-		listMemoIndexPeriods: () => [],
-		listMemosInPeriods: async () => [],
-		getMemos: () => [],
-		setMemos: () => {},
-		invalidateFilteredMemos: () => {},
-		captureRenderState: makeRenderState,
-		onStarted: () => {},
-		onPeriodHydrated: () => {},
-		onCompleted: () => {},
-		onFailed: () => {},
-		onSidebarRequested: () => {
-			sidebarRenderCalls += 1;
-		},
-		beginScheduledHydration: () => {},
-		ensureAllMemosLoaded: () => {
-			ensureCalls += 1;
-		},
-	});
-	sidebarHydrator.deferSidebarHydration();
-	assert.deepEqual(scheduler.pendingDelays(), [0]);
-	scheduler.runNext();
-	assert.equal(sidebarHydrator.getSnapshot().fastMode, true);
-	assert.equal(sidebarRenderCalls, 1);
-	assert.equal(ensureCalls, 2);
-});
-
-test("accelerates a background hydration run after the current wait", async () => {
-	const scheduler = new TestScheduler();
-	const listedPeriods: string[] = [];
-	const hydrator = new MobileMemoHydrator({
-		isMobile: () => true,
-		isLoading: () => false,
-		canHydrateCardFlow: () => true,
-		scheduleTask: (callback, delayMs) => scheduler.schedule(callback, delayMs),
-		cancelTask: (taskId) => scheduler.cancel(taskId),
-		listMemoIndexPeriods: () => ["2026-05", "2026-04"],
-		listMemosInPeriods: async ([period]) => {
-			listedPeriods.push(period);
-			return [];
-		},
-		getMemos: () => [],
-		setMemos: () => {},
-		invalidateFilteredMemos: () => {},
-		captureRenderState: makeRenderState,
-		onStarted: () => {},
-		onPeriodHydrated: () => {},
-		onCompleted: () => {},
-		onFailed: () => {},
-		onSidebarRequested: () => {},
-		beginScheduledHydration: () => {},
-		ensureAllMemosLoaded: () => {},
-	});
-
-	const hydration = hydrator.start(false);
-	assert.deepEqual(scheduler.pendingDelays(), [180]);
-	hydrator.accelerate();
-	await scheduler.runNextAndFlush();
-	assert.deepEqual(listedPeriods, ["2026-05"]);
-	assert.deepEqual(scheduler.pendingDelays(), [0]);
-	await scheduler.runNextAndFlush();
+	assert.deepEqual(harness.scheduler.pendingDelays(), [0]);
+	await harness.scheduler.runNextAndFlush();
+	assert.deepEqual(harness.scheduler.pendingDelays(), [0]);
+	await harness.scheduler.runNextAndFlush();
 	assert.equal(await hydration, true);
 });
 
-test("pauses background hydration while mobile background work is paused", async () => {
-	const scheduler = new TestScheduler();
-	const olderMemo = makeMemo("older", "2026-05-10T08:00:00+08:00");
+test("card-flow and sidebar requests accelerate remaining batches", async () => {
+	const cardHarness = createHarness(150);
+	cardHarness.hydrator.setInitialLoadSuccess(cardHarness.plan, 50);
+	cardHarness.hydrator.requestCardFlowHydration();
+	assert.equal(cardHarness.hydrator.getSnapshot().fastMode, true);
+	assert.equal(cardHarness.hydrator.getSnapshot().renderNextBatchAfterHydration, true);
+	assert.equal(cardHarness.ensureCalls(), 1);
+
+	const sidebarHarness = createHarness(150);
+	sidebarHarness.hydrator.setInitialLoadSuccess(sidebarHarness.plan, 50);
+	sidebarHarness.hydrator.deferSidebarHydration();
+	assert.deepEqual(sidebarHarness.scheduler.pendingDelays(), [0]);
+	sidebarHarness.scheduler.runNext();
+	assert.equal(sidebarHarness.sidebarCalls(), 1);
+	assert.equal(sidebarHarness.ensureCalls(), 1);
+});
+
+test("pauses background reads while editing and resumes afterwards", async () => {
 	let paused = true;
-	let periodReadCalls = 0;
-	let completedCalls = 0;
+	const harness = createHarness(150, { isPaused: () => paused });
+	harness.hydrator.setInitialLoadSuccess(harness.plan, 50);
+	const hydration = harness.hydrator.start(false);
+
+	await harness.scheduler.runNextAndFlush();
+	assert.equal(harness.pageRequests.length, 0);
+	paused = false;
+	await harness.scheduler.runNextAndFlush();
+	assert.equal(await hydration, true);
+	assert.deepEqual(harness.pageRequests, [{ offset: 50, limit: 100 }]);
+});
+
+test("cancels a scheduled count hydration before reading", async () => {
+	const harness = createHarness(150);
+	harness.hydrator.setInitialLoadSuccess(harness.plan, 50);
+	const hydration = harness.hydrator.start(false);
+	harness.hydrator.cancel();
+	await harness.scheduler.runNextAndFlush();
+
+	assert.equal(await hydration, false);
+	assert.equal(harness.pageRequests.length, 0);
+	assert.equal(harness.completedCalls(), 0);
+});
+
+test("reports a failed page without marking all memos loaded", async () => {
+	const harness = createHarness(150, { failPage: true });
+	harness.hydrator.setInitialLoadSuccess(harness.plan, 50);
+	const hydration = harness.hydrator.start(true);
+	await harness.scheduler.runNextAndFlush();
+
+	assert.equal(await hydration, false);
+	assert.equal(harness.failedCalls(), 1);
+	assert.equal(harness.completedCalls(), 0);
+	assert.equal(harness.hydrator.getSnapshot().allMemosLoaded, false);
+});
+
+function createHarness(total: number, overrides: { isPaused?: () => boolean; failPage?: boolean } = {}) {
+	const scheduler = new TestScheduler();
+	const plan = Array.from({ length: total }, (_, index) => `Memo/${String(index).padStart(4, "0")}.md`);
+	const pageRequests: Array<{ offset: number; limit: number }> = [];
+	const batchStates: MobileMemoHydrationRenderState[] = [];
 	let memos: MemoRecord[] = [];
+	let beginCalls = 0;
+	let completedCalls = 0;
+	let failedCalls = 0;
+	let ensureCalls = 0;
+	let sidebarCalls = 0;
 	const hydrator = new MobileMemoHydrator({
 		isMobile: () => true,
 		isLoading: () => false,
-		isPaused: () => paused,
+		isPaused: overrides.isPaused,
 		canHydrateCardFlow: () => true,
 		scheduleTask: (callback, delayMs) => scheduler.schedule(callback, delayMs),
 		cancelTask: (taskId) => scheduler.cancel(taskId),
-		listMemoIndexPeriods: () => ["2026-05"],
-		listMemosInPeriods: async () => {
-			periodReadCalls += 1;
-			return [olderMemo];
+		loadMemoPage: async (sourcePlan, offset, limit): Promise<MemoLoadPage> => {
+			pageRequests.push({ offset, limit });
+			if (overrides.failPage === true) throw new Error("page read failed");
+			const nextOffset = Math.min(sourcePlan.length, offset + limit);
+			return {
+				memos: sourcePlan.slice(offset, nextOffset).map((path, index) => makeMemo(path, offset + index)),
+				nextOffset,
+				total: sourcePlan.length,
+			};
 		},
 		getMemos: () => memos,
-		setMemos: (nextMemos) => {
-			memos = nextMemos;
-		},
+		setMemos: (nextMemos) => { memos = nextMemos; },
 		invalidateFilteredMemos: () => {},
 		captureRenderState: makeRenderState,
 		onStarted: () => {},
-		onPeriodHydrated: () => {},
-		onCompleted: () => {
-			completedCalls += 1;
-		},
-		onFailed: () => {},
-		onSidebarRequested: () => {},
-		beginScheduledHydration: () => {},
-		ensureAllMemosLoaded: () => {},
+		onBatchHydrated: (state) => batchStates.push(state),
+		onCompleted: () => { completedCalls += 1; },
+		onFailed: () => { failedCalls += 1; },
+		onSidebarRequested: () => { sidebarCalls += 1; },
+		beginScheduledHydration: () => { beginCalls += 1; },
+		ensureAllMemosLoaded: () => { ensureCalls += 1; },
 	});
-
-	const hydration = hydrator.start(false);
-	assert.deepEqual(scheduler.pendingDelays(), [180]);
-	await scheduler.runNextAndFlush();
-	assert.equal(periodReadCalls, 0);
-	assert.equal(completedCalls, 0);
-	assert.deepEqual(scheduler.pendingDelays(), [180]);
-
-	paused = false;
-	await scheduler.runNextAndFlush();
-	assert.equal(await hydration, true);
-	assert.equal(periodReadCalls, 1);
-	assert.equal(completedCalls, 1);
-	assert.deepEqual(memos.map((memo) => memo.id), ["older"]);
-});
-
-test("cancels a pending hydration run before period reads", async () => {
-	const scheduler = new TestScheduler();
-	let periodReadCalls = 0;
-	let completedCalls = 0;
-	const hydrator = new MobileMemoHydrator({
-		isMobile: () => true,
-		isLoading: () => false,
-		canHydrateCardFlow: () => true,
-		scheduleTask: (callback, delayMs) => scheduler.schedule(callback, delayMs),
-		cancelTask: (taskId) => scheduler.cancel(taskId),
-		listMemoIndexPeriods: () => ["2026-05"],
-		listMemosInPeriods: async () => {
-			periodReadCalls += 1;
-			return [];
-		},
-		getMemos: () => [],
-		setMemos: () => {},
-		invalidateFilteredMemos: () => {},
-		captureRenderState: makeRenderState,
-		onStarted: () => {},
-		onPeriodHydrated: () => {},
-		onCompleted: () => {
-			completedCalls += 1;
-		},
-		onFailed: () => {},
-		onSidebarRequested: () => {},
-		beginScheduledHydration: () => {},
-		ensureAllMemosLoaded: () => {},
-	});
-
-	const hydration = hydrator.start(false);
-	hydrator.cancel();
-	await scheduler.runNextAndFlush();
-
-	assert.equal(await hydration, false);
-	assert.equal(periodReadCalls, 0);
-	assert.equal(completedCalls, 0);
-	assert.equal(hydrator.getSnapshot().fastMode, false);
-});
-
-test("reports a failed period read without completing hydration", async () => {
-	const scheduler = new TestScheduler();
-	let failedCalls = 0;
-	let completedCalls = 0;
-	const hydrator = new MobileMemoHydrator({
-		isMobile: () => true,
-		isLoading: () => false,
-		canHydrateCardFlow: () => true,
-		scheduleTask: (callback, delayMs) => scheduler.schedule(callback, delayMs),
-		cancelTask: (taskId) => scheduler.cancel(taskId),
-		listMemoIndexPeriods: () => ["2026-05"],
-		listMemosInPeriods: async () => {
-			throw new Error("period read failed");
-		},
-		getMemos: () => [],
-		setMemos: () => {},
-		invalidateFilteredMemos: () => {},
-		captureRenderState: makeRenderState,
-		onStarted: () => {},
-		onPeriodHydrated: () => {},
-		onCompleted: () => {
-			completedCalls += 1;
-		},
-		onFailed: () => {
-			failedCalls += 1;
-		},
-		onSidebarRequested: () => {},
-		beginScheduledHydration: () => {},
-		ensureAllMemosLoaded: () => {},
-	});
-
-	const hydration = hydrator.start(true);
-	await scheduler.runNextAndFlush();
-
-	assert.equal(await hydration, false);
-	assert.equal(failedCalls, 1);
-	assert.equal(completedCalls, 0);
-	assert.equal(hydrator.getSnapshot().allMemosLoaded, false);
-	assert.equal(hydrator.getSnapshot().loadMode, "recent");
-});
+	return {
+		hydrator,
+		plan,
+		scheduler,
+		pageRequests,
+		batchStates,
+		beginCalls: () => beginCalls,
+		completedCalls: () => completedCalls,
+		failedCalls: () => failedCalls,
+		ensureCalls: () => ensureCalls,
+		sidebarCalls: () => sidebarCalls,
+	};
+}
 
 function makeRenderState(): MobileMemoHydrationRenderState {
-	return {
-		renderedCardCount: 4,
-		previousCardFlowKey: "card-flow",
-		previousMobileSearchKey: "mobile-search",
-	};
+	return { renderedCardCount: 4, previousCardFlowKey: "card-flow", previousMobileSearchKey: "mobile-search" };
 }
 
 class TestScheduler {
 	private nextId = 1;
-	private readonly tasks: Array<{
-		id: number;
-		delayMs: number;
-		callback: () => void;
-	}> = [];
+	private readonly tasks: Array<{ id: number; delayMs: number; callback: () => void }> = [];
 
 	schedule(callback: () => void, delayMs: number): number {
-		const id = this.nextId;
-		this.nextId += 1;
+		const id = this.nextId++;
 		this.tasks.push({ id, delayMs, callback });
 		return id;
 	}
 
 	cancel(taskId: number): void {
 		const index = this.tasks.findIndex((task) => task.id === taskId);
-		if (index !== -1) {
-			this.tasks.splice(index, 1);
-		}
+		if (index !== -1) this.tasks.splice(index, 1);
 	}
 
 	pendingDelays(): number[] {
@@ -399,13 +192,12 @@ class TestScheduler {
 
 	async runNextAndFlush(): Promise<void> {
 		this.runNext();
-		for (let index = 0; index < 6; index += 1) {
-			await Promise.resolve();
-		}
+		for (let index = 0; index < 8; index += 1) await Promise.resolve();
 	}
 }
 
-function makeMemo(id: string, createdAt: string): MemoRecord {
+function makeMemo(id: string, order: number): MemoRecord {
+	const createdAt = new Date(Date.UTC(2026, 0, 1, 0, order)).toISOString();
 	return {
 		id,
 		createdAt,
@@ -416,30 +208,9 @@ function makeMemo(id: string, createdAt: string): MemoRecord {
 		syncStatus: "synced",
 		source: "plugin_input",
 		version: 1,
-		tags: [],
-		links: [],
-		images: [],
-		references: [],
-		sourceMemoId: null,
-		issue: null,
-		lastMarkdownSyncAt: null,
-		lastMarkdownSyncSource: null,
-		dailyRef: {
-			path: "Daily/2026-06-02.md",
-			heading: "Memos",
-			sectionType: "heading",
-			lastKnownBlock: id,
-			lastKnownHash: `hash-${id}`,
-			lineNumberHint: 1,
-			lastSyncedAt: null,
-		},
-		monthlyRef: {
-			path: "Memos/Memos-2026-06.md",
-			dateHeading: "2026-06-02",
-			lastKnownBlock: id,
-			lastKnownHash: `hash-${id}`,
-			lineNumberHint: 1,
-			lastSyncedAt: null,
-		},
+		tags: [], links: [], images: [], references: [], sourceMemoId: null, issue: null,
+		lastMarkdownSyncAt: null, lastMarkdownSyncSource: null,
+		dailyRef: { path: id, heading: null, lastKnownBlock: id, lastKnownHash: `hash-${id}`, lineNumberHint: 1, lastSyncedAt: null },
+		monthlyRef: { path: "", dateHeading: "", lastKnownBlock: "", lastKnownHash: "", lineNumberHint: null, lastSyncedAt: null },
 	};
 }

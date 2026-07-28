@@ -11,10 +11,9 @@ import type { RecordStatsView } from "../services/RecordStatsService";
 import type { ReferenceService } from "../services/ReferenceService";
 import type { SettingsService } from "../services/SettingsService";
 import type { ShuffleDayService } from "../services/ShuffleDayService";
-import type { FileMemoOrchestrator } from "../services/FileMemoOrchestrator";
+import { MOBILE_INITIAL_MEMO_COUNT, type FileMemoOrchestrator } from "../services/FileMemoOrchestrator";
 import type { TimeBuoyMaintenanceOutcome } from "../services/TimeBuoyService";
 import type { ScanDailyMemosResult } from "../services/MemoScanService";
-import { getRecentMemoPeriods } from "../services/memoQueries";
 import type { MemoMutation, MemoRecord } from "../types/memo";
 import { applyListFormatToText, getHashInsertionText, getListEnterPatch, getListEnterPatchForNativeInput } from "../utils/composerInput";
 import type { TextReplacement } from "../utils/composerInput";
@@ -224,6 +223,10 @@ type WindowWithIntersectionObserver = Window & {
 type WindowWithResizeObserver = Window & {
 	ResizeObserver?: typeof ResizeObserver;
 };
+
+function compareText(left: string, right: string): number {
+	return left < right ? -1 : left > right ? 1 : 0;
+}
 
 interface RenderUiStateOptions {
 	renderCardFlow?: boolean;
@@ -654,7 +657,7 @@ export class KnomoView extends ItemView {
 		this.mobileMemoHydrator = new MobileMemoHydrator({
 			isMobile: () => Platform.isMobile,
 			isLoading: () => this.allMemosLoadingPromise !== null,
-			isPaused: () => this.composerOpen,
+			isPaused: () => this.composerOpen || this.containerEl.doc.visibilityState === "hidden",
 			canHydrateCardFlow: () => this.activeNav !== "trash"
 				&& this.activeNav !== "random"
 				&& this.activeNav !== "shuffleDay"
@@ -662,8 +665,7 @@ export class KnomoView extends ItemView {
 				&& this.activeNav !== "record-stats",
 			scheduleTask: (callback, delayMs) => this.containerEl.win.setTimeout(callback, delayMs),
 			cancelTask: (taskId) => this.containerEl.win.clearTimeout(taskId),
-			listMemoIndexPeriods: () => this.syncOrchestrator.listMemoIndexPeriods(),
-			listMemosInPeriods: (periods) => this.syncOrchestrator.listMemosInPeriods(periods),
+			loadMemoPage: (plan, offset, limit) => this.loadMobileMemoPage(plan, offset, limit),
 			getMemos: () => this.memos,
 			setMemos: (memos) => {
 				this.memos = memos;
@@ -678,7 +680,7 @@ export class KnomoView extends ItemView {
 					this.renderTags();
 				}
 			},
-			onPeriodHydrated: (state) => this.handleMobileMemoPeriodHydrated(state),
+			onBatchHydrated: (state) => this.handleMobileMemoBatchHydrated(state),
 			onCompleted: (state) => this.handleMobileMemoHydrationCompleted(state),
 			onFailed: () => {
 				if (this.cardFlowDeferredForAllMemos && this.shouldDeferCardFlowForAllMemos()) {
@@ -717,8 +719,11 @@ export class KnomoView extends ItemView {
 		});
 		this.timeBuoyViewController = new TimeBuoyViewController({
 			getNow: () => new Date(),
-			queryAll: () => this.syncOrchestrator.queryAllTimeBuoys(),
-			queryDate: (date) => this.syncOrchestrator.queryTimeBuoysForDate(date),
+			queryAll: () => this.syncOrchestrator.queryAllTimeBuoys(this.getLoadedMobileMemosForAuxiliaryQuery()),
+			queryDate: (date) => this.syncOrchestrator.queryTimeBuoysForDate(
+				date,
+				this.getLoadedMobileMemosForAuxiliaryQuery(),
+			),
 			rebuild: (options = {}) => this.syncOrchestrator.rebuildTimeBuoyIndex({
 				...options,
 				yieldToUi: () => new Promise<void>((resolve) => {
@@ -1074,7 +1079,6 @@ export class KnomoView extends ItemView {
 			this.memos = Array.from(memoById.values())
 				.filter((memo) => memo.status === "active")
 				.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-			this.mobileMemoHydrator.markPeriodLoaded(formatMonthPeriod(new Date(mutation.memo.createdAt)));
 		} else if (mutation.type === "update") {
 			this.memos = this.memos.map((memo) => memo.id === mutation.memo.id ? mutation.memo : memo);
 		} else {
@@ -1220,7 +1224,7 @@ export class KnomoView extends ItemView {
 		if (this.settingsService.getSettings().timeBuoyEnabled) {
 			if (this.activeNav === "time-buoy") {
 				void this.timeBuoyViewController.loadInitial();
-			} else {
+			} else if (!Platform.isMobile) {
 				void this.timeBuoyViewController.loadTodayOnly();
 			}
 		}
@@ -1499,14 +1503,17 @@ export class KnomoView extends ItemView {
 		const previousMobileSearchKey = this.getMobileSearchStateKey();
 		let loaded = false;
 		try {
-			this.memos = loadAll
-				? await this.syncOrchestrator.listMemos()
-				: await this.syncOrchestrator.listRecentMemos();
+			const plan = this.syncOrchestrator.createMemoLoadPlan();
+			let loadedMemoCount = plan.length;
+			if (loadAll) {
+				this.memos = await this.syncOrchestrator.listMemos();
+			} else {
+				const page = await this.loadMobileMemoPage(plan, 0, MOBILE_INITIAL_MEMO_COUNT);
+				this.memos = page.memos;
+				loadedMemoCount = page.nextOffset;
+			}
 			this.invalidateRecordStats();
-			this.mobileMemoHydrator.setReloadSuccess(
-				loadAll,
-				loadAll ? this.syncOrchestrator.listMemoIndexPeriods() : getRecentMemoPeriods(),
-			);
+			this.mobileMemoHydrator.setReloadSuccess(loadAll, plan, loadedMemoCount);
 			this.cardFlowError = null;
 			this.filteredMemosCache = null;
 			this.invalidateMemoSearchCache();
@@ -1561,13 +1568,14 @@ export class KnomoView extends ItemView {
 	private async loadInitialMobileMemos(): Promise<void> {
 		const runId = this.mobileMemoHydrator.getSnapshot().runId;
 		try {
-			const memos = await this.syncOrchestrator.listRecentMemos();
+			const plan = this.syncOrchestrator.createMemoLoadPlan();
+			const firstPage = await this.loadMobileMemoPage(plan, 0, MOBILE_INITIAL_CARD_BATCH_SIZE);
 			if (!this.mobileMemoHydrator.isCurrentRun(runId) || this.cardFlowEl === null || !this.cardFlowEl.isConnected) {
 				return;
 			}
-			this.memos = memos;
+			this.memos = firstPage.memos;
 			this.invalidateRecordStats();
-			this.mobileMemoHydrator.setInitialLoadSuccess(getRecentMemoPeriods());
+			this.mobileMemoHydrator.setInitialLoadSuccess(plan, firstPage.nextOffset);
 			this.cardFlowError = null;
 			this.filteredMemosCache = null;
 			this.invalidateMemoSearchCache();
@@ -1584,7 +1592,21 @@ export class KnomoView extends ItemView {
 			if (this.activeNav === "random" && !randomSnapshot.loading && randomSnapshot.memos === null) {
 				void this.randomReunionController.refresh();
 			}
-			this.mobileMemoHydrator.schedule();
+			const bufferPage = await this.loadMobileMemoPage(
+				plan,
+				firstPage.nextOffset,
+				MOBILE_INITIAL_MEMO_COUNT - firstPage.nextOffset,
+			);
+			if (!this.mobileMemoHydrator.isCurrentRun(runId) || this.cardFlowEl === null || !this.cardFlowEl.isConnected) {
+				return;
+			}
+			this.mergeLoadedMemos(bufferPage.memos);
+			this.mobileMemoHydrator.setInitialLoadProgress(bufferPage.nextOffset);
+			if (this.mobileMemoHydrator.getSnapshot().allMemosLoaded) {
+				this.handleMobileMemoHydrationCompleted(this.captureMobileMemoHydrationRenderState());
+			} else {
+				this.mobileMemoHydrator.schedule();
+			}
 		} catch (error) {
 			if (!this.mobileMemoHydrator.isCurrentRun(runId) || this.cardFlowEl === null || !this.cardFlowEl.isConnected) {
 				return;
@@ -5392,6 +5414,32 @@ export class KnomoView extends ItemView {
 		});
 	}
 
+	private loadMobileMemoPage(plan: readonly string[], offset: number, limit: number) {
+		return this.syncOrchestrator.loadMemoPage(plan, offset, limit, {
+			concurrency: 4,
+			timeBudgetMs: 4,
+			yieldToUi: () => new Promise<void>((resolve) => {
+				this.containerEl.win.requestAnimationFrame(() => resolve());
+			}),
+		});
+	}
+
+	private mergeLoadedMemos(memos: readonly MemoRecord[]): void {
+		if (memos.length === 0) return;
+		const memoById = new Map(this.memos.map((memo) => [memo.id, memo]));
+		for (const memo of memos) memoById.set(memo.id, memo);
+		this.memos = Array.from(memoById.values())
+			.filter((memo) => memo.status === "active")
+			.sort((left, right) => right.createdAt.localeCompare(left.createdAt) || compareText(left.id, right.id));
+		this.filteredMemosCache = null;
+	}
+
+	private getLoadedMobileMemosForAuxiliaryQuery(): readonly MemoRecord[] | undefined {
+		return Platform.isMobile && this.mobileMemoHydrator.getSnapshot().allMemosLoaded
+			? this.memos
+			: undefined;
+	}
+
 	private captureMobileMemoHydrationRenderState(): MobileMemoHydrationRenderState {
 		const renderedCardCount = this.getRenderedCardCount();
 		return {
@@ -5401,7 +5449,7 @@ export class KnomoView extends ItemView {
 		};
 	}
 
-	private handleMobileMemoPeriodHydrated(state: MobileMemoHydrationRenderState): void {
+	private handleMobileMemoBatchHydrated(state: MobileMemoHydrationRenderState): void {
 		this.renderStats();
 		if (this.shouldDeferCardFlowForAllMemos()) {
 			return;
@@ -5417,6 +5465,9 @@ export class KnomoView extends ItemView {
 	private handleMobileMemoHydrationCompleted(state: MobileMemoHydrationRenderState): void {
 		const shouldRenderDeferredCardFlow = this.cardFlowDeferredForAllMemos;
 		this.cardFlowDeferredForAllMemos = false;
+		if (this.settingsService.getSettings().timeBuoyEnabled && this.activeNav !== "time-buoy") {
+			void this.timeBuoyViewController.loadTodayOnly();
+		}
 		if (this.activeNav === "record-stats" && !this.recordStatsPreparationController.hasActiveRequest()) {
 			void this.prepareRecordStats();
 		} else {

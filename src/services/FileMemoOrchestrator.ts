@@ -24,17 +24,39 @@ interface CachedMemo {
 	memo: MemoRecord | null;
 }
 
+interface PendingMemoRead {
+	mtime: number;
+	size: number;
+	promise: Promise<MemoRecord | null>;
+}
+
+export interface MemoLoadPage {
+	memos: MemoRecord[];
+	nextOffset: number;
+	total: number;
+}
+
+export interface MemoLoadOptions {
+	concurrency?: number;
+	timeBudgetMs?: number;
+	yieldToUi?: () => Promise<void>;
+}
+
 interface ReferenceHint {
 	sourceMemoId: string | null;
 	sourceReferenceText: string | null;
 }
 
 const TRASH_FOLDER_NAME = "_knomo-trash";
+export const MOBILE_INITIAL_MEMO_COUNT = 50;
+const DEFAULT_BACKGROUND_READ_CONCURRENCY = 4;
+const DEFAULT_BACKGROUND_TIME_BUDGET_MS = 4;
 
 /** Maps standalone Markdown files into the existing card model. */
 export class FileMemoOrchestrator {
 	private readonly markdown = new MarkdownBlockService();
 	private readonly cache = new Map<string, CachedMemo>();
+	private readonly pendingReads = new Map<string, PendingMemoRead>();
 
 	constructor(private readonly app: App, private readonly getSettings: GetSettings) {}
 
@@ -62,10 +84,12 @@ export class FileMemoOrchestrator {
 
 	invalidatePath(path: string): void {
 		this.cache.delete(path);
+		this.pendingReads.delete(path);
 	}
 
 	invalidateAll(): void {
 		this.cache.clear();
+		this.pendingReads.clear();
 	}
 
 	async createMemoWithTimeBuoyOutcome(
@@ -126,9 +150,48 @@ export class FileMemoOrchestrator {
 	}
 
 	async listMemos(): Promise<MemoRecord[]> { return this.listActiveFiles(); }
-	async listRecentMemos(): Promise<MemoRecord[]> { return this.listActiveFiles(); }
+	async listRecentMemos(): Promise<MemoRecord[]> {
+		const plan = this.createMemoLoadPlan();
+		return (await this.loadMemoPage(plan, 0, MOBILE_INITIAL_MEMO_COUNT)).memos;
+	}
 	listMemoIndexPeriods(): string[] { return []; }
 	async listMemosInPeriods(_periods: string[]): Promise<MemoRecord[]> { return this.listActiveFiles(); }
+
+	/** Builds a content-free, stable snapshot used by count-based mobile pagination. */
+	createMemoLoadPlan(): string[] {
+		return this.app.vault.getMarkdownFiles()
+			.filter((file) => this.isActiveMemoFile(file))
+			.sort(compareMemoFilesForLoading)
+			.map((file) => file.path);
+	}
+
+	async loadMemoPage(
+		plan: readonly string[],
+		offset: number,
+		limit: number,
+		options: MemoLoadOptions = {},
+	): Promise<MemoLoadPage> {
+		const start = Math.max(0, Math.min(plan.length, Math.floor(offset)));
+		const size = Math.max(0, Math.floor(limit));
+		const end = Math.min(plan.length, start + size);
+		const paths = plan.slice(start, end);
+		const concurrency = Math.max(1, Math.floor(options.concurrency ?? DEFAULT_BACKGROUND_READ_CONCURRENCY));
+		const timeBudgetMs = Math.max(1, options.timeBudgetMs ?? DEFAULT_BACKGROUND_TIME_BUDGET_MS);
+		const memos: MemoRecord[] = [];
+		let sliceStartedAt = performance.now();
+		for (let index = 0; index < paths.length; index += concurrency) {
+			const group = paths.slice(index, index + concurrency);
+			const results = await Promise.all(group.map((path) => this.readPlannedPath(path)));
+			for (const memo of results) {
+				if (memo !== null) memos.push(memo);
+			}
+			if (options.yieldToUi !== undefined && performance.now() - sliceStartedAt >= timeBudgetMs) {
+				await options.yieldToUi();
+				sliceStartedAt = performance.now();
+			}
+		}
+		return { memos, nextOffset: end, total: plan.length };
+	}
 
 	async getDeletedMemoSummary(): Promise<DeletedMemoSummary> {
 		const memos = await this.listDeletedMemos();
@@ -173,15 +236,17 @@ export class FileMemoOrchestrator {
 		return builder.build();
 	}
 
-	async queryTimeBuoysForDate(targetDate: string): Promise<TimeBuoyQueryResult> {
-		const items = (await this.listActiveFiles()).flatMap((memo) => extractTimeBuoyDates(memo.contentSnapshot)
+	async queryTimeBuoysForDate(targetDate: string, loadedMemos?: readonly MemoRecord[]): Promise<TimeBuoyQueryResult> {
+		const memos = loadedMemos ?? await this.listActiveFiles();
+		const items = memos.flatMap((memo) => extractTimeBuoyDates(memo.contentSnapshot)
 			.filter((date) => date === targetDate)
 			.map((date) => ({ instance: createTimeBuoyInstance(memo, date), memo })));
 		return { items, stale: [], missingPeriods: [] };
 	}
 
-	async queryAllTimeBuoys(): Promise<TimeBuoyAllQueryResult> {
-		const items = (await this.listActiveFiles()).flatMap((memo) => extractTimeBuoyDates(memo.contentSnapshot)
+	async queryAllTimeBuoys(loadedMemos?: readonly MemoRecord[]): Promise<TimeBuoyAllQueryResult> {
+		const memos = loadedMemos ?? await this.listActiveFiles();
+		const items = memos.flatMap((memo) => extractTimeBuoyDates(memo.contentSnapshot)
 			.map((date) => ({ instance: createTimeBuoyInstance(memo, date), memo })))
 			.sort((left, right) => left.instance.targetDate.localeCompare(right.instance.targetDate)
 				|| right.memo.createdAt.localeCompare(left.memo.createdAt));
@@ -216,12 +281,12 @@ export class FileMemoOrchestrator {
 	async recoverPendingMemoCreates(): Promise<number> { return 0; }
 
 	private async listActiveFiles(): Promise<MemoRecord[]> {
-		const files = this.app.vault.getMarkdownFiles().filter((file) => this.isActiveMemoFile(file));
-		const activePaths = new Set(files.map((file) => file.path));
+		const plan = this.createMemoLoadPlan();
+		const activePaths = new Set(plan);
 		for (const path of this.cache.keys()) if (!activePaths.has(path)) this.cache.delete(path);
-		const memos = (await Promise.all(files.map((file) => this.readCachedFile(file))))
-			.filter((memo): memo is MemoRecord => memo !== null);
-		return memos.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+		return (await this.loadMemoPage(plan, 0, plan.length, {
+			concurrency: Math.min(16, Math.max(DEFAULT_BACKGROUND_READ_CONCURRENCY, plan.length)),
+		})).memos;
 	}
 
 	private isActiveMemoFile(file: TFile): boolean {
@@ -233,13 +298,32 @@ export class FileMemoOrchestrator {
 	private async readCachedFile(file: TFile): Promise<MemoRecord | null> {
 		const cached = this.cache.get(file.path);
 		if (cached !== undefined && cached.mtime === file.stat.mtime && cached.size === file.stat.size) return cached.memo;
-		const memo = await this.readFile(file);
-		if (!memo.contentSnapshot.trim()) {
-			this.cache.set(file.path, { mtime: file.stat.mtime, size: file.stat.size, memo: null });
-			return null;
+		const pending = this.pendingReads.get(file.path);
+		if (pending !== undefined && pending.mtime === file.stat.mtime && pending.size === file.stat.size) {
+			return pending.promise;
 		}
-		this.cacheMemo(file, memo);
-		return memo;
+		const mtime = file.stat.mtime;
+		const size = file.stat.size;
+		let promise: Promise<MemoRecord | null>;
+		promise = this.readFile(file).then((memo) => {
+			const current = this.pendingReads.get(file.path);
+			if (current?.promise !== promise || file.stat.mtime !== mtime || file.stat.size !== size) return memo;
+			if (!memo.contentSnapshot.trim()) {
+				this.cache.set(file.path, { mtime, size, memo: null });
+				return null;
+			}
+			this.cache.set(file.path, { mtime, size, memo });
+			return memo;
+		}).finally(() => {
+			if (this.pendingReads.get(file.path)?.promise === promise) this.pendingReads.delete(file.path);
+		});
+		this.pendingReads.set(file.path, { mtime, size, promise });
+		return promise;
+	}
+
+	private async readPlannedPath(path: string): Promise<MemoRecord | null> {
+		const file = this.app.vault.getAbstractFileByPath(path);
+		return file instanceof TFile && this.isActiveMemoFile(file) ? this.readCachedFile(file) : null;
 	}
 
 	private async readFile(file: TFile, fallback?: Date, hint?: ReferenceHint): Promise<MemoRecord> {
@@ -384,4 +468,23 @@ function createTimeBuoyInstance(memo: MemoRecord, targetDate: string) {
 		sourcePeriod: formatMonthPeriod(new Date(memo.createdAt)),
 		buoyRevision: getTimeBuoyRevision(memo.contentSnapshot),
 	};
+}
+
+function compareMemoFilesForLoading(left: TFile, right: TFile): number {
+	const leftTimestamp = parseMemoFilenameTimestamp(left.name)?.getTime() ?? 0;
+	const rightTimestamp = parseMemoFilenameTimestamp(right.name)?.getTime() ?? 0;
+	if (leftTimestamp !== rightTimestamp) return rightTimestamp - leftTimestamp;
+	const leftCollision = parseCollisionOrder(left.path);
+	const rightCollision = parseCollisionOrder(right.path);
+	if (leftCollision.stem === rightCollision.stem && leftCollision.order !== rightCollision.order) {
+		return rightCollision.order - leftCollision.order;
+	}
+	return left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
+}
+
+function parseCollisionOrder(name: string): { stem: string; order: number } {
+	const match = /^(.*_\d{10})(?: \((\d+)\))?\.md$/i.exec(name);
+	return match === null
+		? { stem: name.toLowerCase(), order: 1 }
+		: { stem: match[1].toLowerCase(), order: match[2] === undefined ? 1 : Number(match[2]) };
 }

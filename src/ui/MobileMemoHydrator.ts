@@ -1,9 +1,9 @@
+import type { MemoLoadPage } from "../services/FileMemoOrchestrator";
 import type { MemoRecord } from "../types/memo";
 
 const MOBILE_MEMO_HYDRATE_INITIAL_DELAY_MS = 1200;
 const MOBILE_MEMO_HYDRATE_BACKGROUND_DELAY_MS = 180;
-const MOBILE_MEMO_HYDRATE_BATCH_PERIODS = 4;
-const MOBILE_MEMO_HYDRATE_BATCH_MEMOS = 200;
+const MOBILE_MEMO_HYDRATE_BATCH_SIZE = 100;
 
 export type MemoLoadMode = "recent" | "hydrating" | "all";
 
@@ -19,7 +19,8 @@ export interface MobileMemoHydratorSnapshot {
 	runId: number;
 	fastMode: boolean;
 	renderNextBatchAfterHydration: boolean;
-	loadedMemoPeriods: ReadonlySet<string>;
+	loadedMemoCount: number;
+	totalMemoCount: number;
 }
 
 interface MobileMemoHydratorOptions {
@@ -29,14 +30,13 @@ interface MobileMemoHydratorOptions {
 	canHydrateCardFlow: () => boolean;
 	scheduleTask: (callback: () => void, delayMs: number) => number;
 	cancelTask: (taskId: number) => void;
-	listMemoIndexPeriods: () => string[];
-	listMemosInPeriods: (periods: string[]) => Promise<MemoRecord[]>;
+	loadMemoPage: (plan: readonly string[], offset: number, limit: number) => Promise<MemoLoadPage>;
 	getMemos: () => MemoRecord[];
 	setMemos: (memos: MemoRecord[]) => void;
 	invalidateFilteredMemos: () => void;
 	captureRenderState: () => MobileMemoHydrationRenderState;
 	onStarted: () => void;
-	onPeriodHydrated: (state: MobileMemoHydrationRenderState) => void;
+	onBatchHydrated: (state: MobileMemoHydrationRenderState) => void;
 	onCompleted: (state: MobileMemoHydrationRenderState) => void;
 	onFailed: () => void;
 	onSidebarRequested: () => void;
@@ -44,11 +44,12 @@ interface MobileMemoHydratorOptions {
 	ensureAllMemosLoaded: () => void;
 }
 
+/** Incrementally hydrates a stable filename-sorted plan without tying batch size to calendar periods. */
 export class MobileMemoHydrator {
 	private allMemosLoaded = false;
 	private loadMode: MemoLoadMode = "recent";
-	private loadedMemoPeriods = new Set<string>();
-	private allMemoPeriods: string[] = [];
+	private loadPlan: string[] = [];
+	private loadedMemoCount = 0;
 	private hydrateTimerId: number | null = null;
 	private sidebarHydrateTimerId: number | null = null;
 	private runId = 0;
@@ -64,7 +65,8 @@ export class MobileMemoHydrator {
 			runId: this.runId,
 			fastMode: this.fastMode,
 			renderNextBatchAfterHydration: this.renderNextBatchAfterHydration,
-			loadedMemoPeriods: this.loadedMemoPeriods,
+			loadedMemoCount: this.loadedMemoCount,
+			totalMemoCount: this.loadPlan.length,
 		};
 	}
 
@@ -72,51 +74,41 @@ export class MobileMemoHydrator {
 		return runId === this.runId;
 	}
 
-	setReloadSuccess(loadAll: boolean, loadedPeriods: readonly string[]): void {
-		this.allMemosLoaded = loadAll;
-		this.loadMode = loadAll ? "all" : "recent";
-		this.loadedMemoPeriods = new Set(loadedPeriods);
+	setReloadSuccess(loadAll: boolean, plan: readonly string[], loadedMemoCount: number): void {
+		this.setLoadProgress(plan, loadAll ? plan.length : loadedMemoCount);
+		this.allMemosLoaded = loadAll || this.loadedMemoCount >= this.loadPlan.length;
+		this.loadMode = this.allMemosLoaded ? "all" : "recent";
 	}
 
-	setInitialLoadSuccess(loadedPeriods: readonly string[]): void {
-		this.allMemosLoaded = false;
-		this.loadMode = "recent";
-		this.loadedMemoPeriods = new Set(loadedPeriods);
+	setInitialLoadSuccess(plan: readonly string[], loadedMemoCount: number): void {
+		this.setLoadProgress(plan, loadedMemoCount);
+		this.allMemosLoaded = this.loadedMemoCount >= this.loadPlan.length;
+		this.loadMode = this.allMemosLoaded ? "all" : "recent";
+	}
+
+	setInitialLoadProgress(loadedMemoCount: number): void {
+		this.loadedMemoCount = Math.max(this.loadedMemoCount, clampCount(loadedMemoCount, this.loadPlan.length));
+		this.allMemosLoaded = this.loadedMemoCount >= this.loadPlan.length;
+		this.loadMode = this.allMemosLoaded ? "all" : "recent";
 	}
 
 	setLoadFailure(): void {
 		this.loadMode = "recent";
-		this.loadedMemoPeriods.clear();
-	}
-
-	markPeriodLoaded(period: string): void {
-		this.loadedMemoPeriods.add(period);
 	}
 
 	schedule(): void {
-		if (
-			!this.options.isMobile()
-			|| this.allMemosLoaded
-			|| this.options.isLoading()
-			|| this.hydrateTimerId !== null
-		) {
+		if (!this.options.isMobile() || this.allMemosLoaded || this.options.isLoading() || this.hydrateTimerId !== null) {
 			return;
 		}
 		this.hydrateTimerId = this.options.scheduleTask(() => {
 			this.hydrateTimerId = null;
-			if (!this.options.isLoading()) {
-				this.options.beginScheduledHydration();
-			}
+			if (!this.options.isLoading()) this.options.beginScheduledHydration();
 		}, MOBILE_MEMO_HYDRATE_INITIAL_DELAY_MS);
 	}
 
 	start(fastMode: boolean): Promise<boolean> {
-		if (!this.options.isMobile() || this.allMemosLoaded) {
-			return Promise.resolve(this.allMemosLoaded);
-		}
-		if (fastMode) {
-			this.fastMode = true;
-		}
+		if (!this.options.isMobile() || this.allMemosLoaded) return Promise.resolve(this.allMemosLoaded);
+		if (fastMode) this.fastMode = true;
 		this.clearScheduled();
 		this.loadMode = "hydrating";
 		this.options.onStarted();
@@ -133,9 +125,7 @@ export class MobileMemoHydrator {
 	}
 
 	requestSidebarHydration(): void {
-		if (!this.options.isMobile() || this.allMemosLoaded) {
-			return;
-		}
+		if (!this.options.isMobile() || this.allMemosLoaded) return;
 		this.fastMode = true;
 		this.loadMode = "hydrating";
 		this.options.ensureAllMemosLoaded();
@@ -143,9 +133,7 @@ export class MobileMemoHydrator {
 	}
 
 	deferSidebarHydration(): void {
-		if (!this.options.isMobile() || this.allMemosLoaded || this.sidebarHydrateTimerId !== null) {
-			return;
-		}
+		if (!this.options.isMobile() || this.allMemosLoaded || this.sidebarHydrateTimerId !== null) return;
 		this.sidebarHydrateTimerId = this.options.scheduleTask(() => {
 			this.sidebarHydrateTimerId = null;
 			this.requestSidebarHydration();
@@ -153,9 +141,7 @@ export class MobileMemoHydrator {
 	}
 
 	requestCardFlowHydration(): void {
-		if (!this.options.isMobile() || this.allMemosLoaded || !this.options.canHydrateCardFlow()) {
-			return;
-		}
+		if (!this.options.isMobile() || this.allMemosLoaded || !this.options.canHydrateCardFlow()) return;
 		this.fastMode = true;
 		this.loadMode = "hydrating";
 		this.renderNextBatchAfterHydration = true;
@@ -167,9 +153,7 @@ export class MobileMemoHydrator {
 	}
 
 	clearScheduled(): void {
-		if (this.hydrateTimerId === null) {
-			return;
-		}
+		if (this.hydrateTimerId === null) return;
 		this.options.cancelTask(this.hydrateTimerId);
 		this.hydrateTimerId = null;
 	}
@@ -184,49 +168,16 @@ export class MobileMemoHydrator {
 
 	private async hydrate(runId: number): Promise<boolean> {
 		try {
-			this.allMemoPeriods = this.options.listMemoIndexPeriods();
-			let pendingPeriods: string[] = [];
-			let pendingMemos: MemoRecord[] = [];
-			for (let index = 0; index < this.allMemoPeriods.length; index += 1) {
-				const period = this.allMemoPeriods[index];
-				if (this.loadedMemoPeriods.has(period)) {
-					continue;
-				}
-				const shouldContinue = await this.waitForHydrationTurn(runId);
-				if (!shouldContinue) {
-					return false;
-				}
-				const periodMemos = await this.options.listMemosInPeriods([period]);
-				if (!this.isCurrentRun(runId)) {
-					return false;
-				}
-				if (periodMemos.length === 0) {
-					this.loadedMemoPeriods.add(period);
-					continue;
-				}
-				pendingPeriods.push(period);
-				pendingMemos.push(...periodMemos);
-				if (
-					this.hasHydrationPeriodsAfter(index)
-					&& this.shouldCommitHydratedMemos(pendingPeriods.length, pendingMemos.length)
-				) {
-					const committed = await this.commitHydratedMemos(runId, pendingPeriods, pendingMemos, true);
-					if (!committed) {
-						return false;
-					}
-					pendingPeriods = [];
-					pendingMemos = [];
-				}
+			while (this.loadedMemoCount < this.loadPlan.length) {
+				if (!await this.waitForHydrationTurn(runId)) return false;
+				const offset = this.loadedMemoCount;
+				const page = await this.options.loadMemoPage(this.loadPlan, offset, MOBILE_MEMO_HYDRATE_BATCH_SIZE);
+				if (!this.isCurrentRun(runId)) return false;
+				if (page.nextOffset <= offset) throw new Error("Mobile memo hydration did not advance.");
+				const hasMore = page.nextOffset < this.loadPlan.length;
+				if (!await this.commitHydratedMemos(runId, page.memos, page.nextOffset, hasMore)) return false;
 			}
-			if (!this.isCurrentRun(runId)) {
-				return false;
-			}
-			if (pendingMemos.length > 0) {
-				const committed = await this.commitHydratedMemos(runId, pendingPeriods, pendingMemos, false);
-				if (!committed) {
-					return false;
-				}
-			}
+			if (!this.isCurrentRun(runId)) return false;
 			this.completeMobileMemoHydration();
 			return true;
 		} catch {
@@ -243,83 +194,55 @@ export class MobileMemoHydrator {
 		while (true) {
 			const delay = this.isPaused() || !this.fastMode ? MOBILE_MEMO_HYDRATE_BACKGROUND_DELAY_MS : 0;
 			const shouldContinue = await this.waitForTurn(runId, delay);
-			if (!shouldContinue || !this.isPaused()) {
-				return shouldContinue;
-			}
+			if (!shouldContinue || !this.isPaused()) return shouldContinue;
 		}
 	}
 
 	private waitForTurn(runId: number, delay: number): Promise<boolean> {
 		return new Promise((resolve) => {
-			this.options.scheduleTask(() => {
-				resolve(this.isCurrentRun(runId));
-			}, delay);
+			this.options.scheduleTask(() => resolve(this.isCurrentRun(runId)), delay);
 		});
-	}
-
-	private shouldCommitHydratedMemos(periodCount: number, memoCount: number): boolean {
-		return periodCount >= MOBILE_MEMO_HYDRATE_BATCH_PERIODS || memoCount >= MOBILE_MEMO_HYDRATE_BATCH_MEMOS;
-	}
-
-	private hasHydrationPeriodsAfter(periodIndex: number): boolean {
-		for (let index = periodIndex + 1; index < this.allMemoPeriods.length; index += 1) {
-			if (!this.loadedMemoPeriods.has(this.allMemoPeriods[index])) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private async commitHydratedMemos(
 		runId: number,
-		periods: readonly string[],
 		memos: readonly MemoRecord[],
+		nextOffset: number,
 		notifyUi: boolean,
 	): Promise<boolean> {
-		if (this.isPaused()) {
-			const shouldContinue = await this.waitForHydrationTurn(runId);
-			if (!shouldContinue) {
-				return false;
-			}
-		}
-		if (!this.isCurrentRun(runId)) {
-			return false;
-		}
+		if (this.isPaused() && !await this.waitForHydrationTurn(runId)) return false;
+		if (!this.isCurrentRun(runId)) return false;
 		const renderState = notifyUi ? this.options.captureRenderState() : null;
 		this.mergeHydratedMemos(memos, notifyUi);
-		for (const period of periods) {
-			this.loadedMemoPeriods.add(period);
-		}
-		if (renderState !== null) {
-			this.options.onPeriodHydrated(renderState);
-		}
+		this.loadedMemoCount = clampCount(nextOffset, this.loadPlan.length);
+		if (renderState !== null) this.options.onBatchHydrated(renderState);
 		return true;
 	}
 
 	private mergeHydratedMemos(memos: readonly MemoRecord[], invalidateFilteredMemos: boolean): void {
-		if (memos.length === 0) {
-			return;
-		}
+		if (memos.length === 0) return;
 		const memoById = new Map(this.options.getMemos().map((memo) => [memo.id, memo]));
-		for (const memo of memos) {
-			memoById.set(memo.id, memo);
-		}
+		for (const memo of memos) memoById.set(memo.id, memo);
 		this.options.setMemos(Array.from(memoById.values())
 			.filter((memo) => memo.status === "active")
-			.sort((left, right) => right.createdAt.localeCompare(left.createdAt)));
-		if (invalidateFilteredMemos) {
-			this.options.invalidateFilteredMemos();
-		}
+			.sort((left, right) => right.createdAt.localeCompare(left.createdAt) || compareText(left.id, right.id)));
+		if (invalidateFilteredMemos) this.options.invalidateFilteredMemos();
 	}
 
 	private completeMobileMemoHydration(): void {
 		const renderState = this.options.captureRenderState();
 		this.allMemosLoaded = true;
+		this.loadedMemoCount = this.loadPlan.length;
 		this.loadMode = "all";
 		this.fastMode = false;
-		this.renderNextBatchAfterHydration = false;
 		this.options.invalidateFilteredMemos();
 		this.options.onCompleted(renderState);
+		this.renderNextBatchAfterHydration = false;
+	}
+
+	private setLoadProgress(plan: readonly string[], loadedMemoCount: number): void {
+		this.loadPlan = [...plan];
+		this.loadedMemoCount = clampCount(loadedMemoCount, this.loadPlan.length);
 	}
 
 	private isPaused(): boolean {
@@ -327,10 +250,16 @@ export class MobileMemoHydrator {
 	}
 
 	private clearDeferredSidebarHydration(): void {
-		if (this.sidebarHydrateTimerId === null) {
-			return;
-		}
+		if (this.sidebarHydrateTimerId === null) return;
 		this.options.cancelTask(this.sidebarHydrateTimerId);
 		this.sidebarHydrateTimerId = null;
 	}
+}
+
+function clampCount(value: number, total: number): number {
+	return Math.max(0, Math.min(total, Math.floor(value)));
+}
+
+function compareText(left: string, right: string): number {
+	return left < right ? -1 : left > right ? 1 : 0;
 }

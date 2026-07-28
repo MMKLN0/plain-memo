@@ -21,6 +21,45 @@ test("standalone memo store scans valid non-empty files and reuses unchanged rea
 	assert.equal(harness.readCount, readsAfterFirstScan);
 });
 
+test("standalone memo load plans sort by filename time and apply stable collision ordering", async () => {
+	const harness = await createHarness([
+		["Flomo/Beta_2607250855.md", "Beta"],
+		["Flomo/Alpha_2607250855.md", "Alpha one"],
+		["Flomo/Alpha_2607250855 (2).md", "Alpha two"],
+		["Flomo/Newest_2607250856.md", "Newest"],
+	]);
+
+	const plan = harness.store.createMemoLoadPlan();
+	const firstPage = await harness.store.loadMemoPage(plan, 0, 2);
+	const secondPage = await harness.store.loadMemoPage(plan, firstPage.nextOffset, 2);
+
+	assert.deepEqual(plan, [
+		"Flomo/Newest_2607250856.md",
+		"Flomo/Alpha_2607250855 (2).md",
+		"Flomo/Alpha_2607250855.md",
+		"Flomo/Beta_2607250855.md",
+	]);
+	assert.deepEqual(firstPage.memos.map((memo) => memo.id), plan.slice(0, 2));
+	assert.deepEqual(secondPage.memos.map((memo) => memo.id), plan.slice(2));
+});
+
+test("standalone memo store shares in-flight reads between concurrent consumers", async () => {
+	const harness = await createHarness([
+		["Flomo/One_2607250855.md", "One"],
+		["Flomo/Two_2607250854.md", "Two"],
+	]);
+	const plan = harness.store.createMemoLoadPlan();
+
+	const [first, second] = await Promise.all([
+		harness.store.loadMemoPage(plan, 0, 2),
+		harness.store.loadMemoPage(plan, 0, 2),
+	]);
+
+	assert.equal(first.memos.length, 2);
+	assert.equal(second.memos.length, 2);
+	assert.equal(harness.readCount, 2);
+});
+
 test("standalone memo store creates, trashes, restores, and purges Markdown files", async () => {
 	const harness = await createHarness([]);
 	const created = await harness.store.createMemoWithTimeBuoyOutcome("First line\nBody");
