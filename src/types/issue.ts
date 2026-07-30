@@ -1,5 +1,3 @@
-import type { KnomoErrorCode } from "./serviceError";
-
 export type MemoIssueType =
 	| "daily_block_missing"
 	| "daily_block_ambiguous"
@@ -15,7 +13,7 @@ export type MemoIssueContextValue = string | number | boolean | null;
 
 export interface MemoIssue {
 	type: MemoIssueType;
-	code?: KnomoErrorCode;
+	code?: string;
 	detectedAt: string;
 	message: string;
 	context?: Record<string, MemoIssueContextValue>;

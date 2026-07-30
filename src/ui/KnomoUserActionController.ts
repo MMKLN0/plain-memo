@@ -74,8 +74,6 @@ interface KnomoUserActionControllerOptions {
 	goToNextRecordStatsPeriod: () => void;
 	retryRecordStats: () => Promise<void>;
 	retryTimeBuoy?: () => Promise<void>;
-	rebuildTimeBuoy?: () => Promise<void>;
-	cancelTimeBuoyRebuild?: () => void;
 	setTimeBuoyTab?: (tab: TimeBuoyTab) => void;
 	loadMoreTimeBuoyCards?: () => void;
 	openTimeBuoy?: () => void;
@@ -322,12 +320,6 @@ export class KnomoUserActionController {
 				return;
 			case "retry-time-buoy":
 				await this.options.retryTimeBuoy?.();
-				return;
-			case "rebuild-time-buoy":
-				await this.options.rebuildTimeBuoy?.();
-				return;
-			case "cancel-time-buoy-rebuild":
-				this.options.cancelTimeBuoyRebuild?.();
 				return;
 			case "time-buoy-tab-today":
 				this.options.setTimeBuoyTab?.("today");

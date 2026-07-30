@@ -3,7 +3,6 @@ import type { App } from "obsidian";
 
 import { t } from "../i18n";
 import type { MemoRecord } from "../types/memo";
-import { parseDailyNoteDateFromPath } from "../utils/dailyNotes";
 import { isSupportedMemoImage, parseMemoLinks } from "../utils/markdown";
 import { getMemoContentStats } from "../utils/memoContentStats";
 import { hasMemoReference } from "../utils/references";
@@ -423,21 +422,8 @@ export function buildMemoSearchText(memo: MemoRecord): string {
 	].join(" ").toLowerCase();
 }
 
-export function parseMemoLocalDate(memo: MemoRecord, dailyStatus: DailyDateConfig): Date | null {
-	const createdAtDate = parseLocalDateText(memo.createdAt);
-	if (createdAtDate !== null) {
-		return createdAtDate;
-	}
-	if (dailyStatus.enabled && dailyStatus.format !== null) {
-		const dailyDate = parseDailyNoteDateFromPath(memo.dailyRef.path, {
-			folder: dailyStatus.folder,
-			format: dailyStatus.format,
-		});
-		if (dailyDate !== null) {
-			return applyMemoBlockTime(dailyDate, memo.dailyRef.lastKnownBlock);
-		}
-	}
-	return parseLocalDateText(memo.monthlyRef.dateHeading) ?? parseLocalDateText(memo.monthlyRef.path);
+export function parseMemoLocalDate(memo: MemoRecord, _dailyStatus: DailyDateConfig): Date | null {
+	return parseLocalDateText(memo.createdAt);
 }
 
 export function parseLocalDateText(value: string): Date | null {
@@ -463,16 +449,6 @@ export function parseLocalDateText(value: string): Date | null {
 		return null;
 	}
 	return date;
-}
-
-export function applyMemoBlockTime(date: Date, block: string): Date {
-	const timeMatch = block.match(/(?:^|\n)- (\d{2}):(\d{2})(?::(\d{2}))?\b/);
-	if (timeMatch === null) {
-		return date;
-	}
-	const nextDate = new Date(date);
-	nextDate.setHours(Number(timeMatch[1]), Number(timeMatch[2]), timeMatch[3] === undefined ? 0 : Number(timeMatch[3]), 0);
-	return nextDate;
 }
 
 export function matchesScope(memo: MemoRecord, filter: ScopeFilter, todayDate = new Date()): boolean {

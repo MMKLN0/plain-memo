@@ -1,5 +1,3 @@
-import type { MemoTimeFormat } from "../types/settings";
-
 function padNumber(value: number, length: number): string {
 	return value.toString().padStart(length, "0");
 }
@@ -17,13 +15,10 @@ export function formatMonthPeriod(date: Date): string {
 	return `${year}-${month}`;
 }
 
-export function formatTimePart(date: Date, format: MemoTimeFormat = "HH:mm:ss"): string {
+export function formatTimePart(date: Date): string {
 	const hours = padNumber(date.getHours(), 2);
 	const minutes = padNumber(date.getMinutes(), 2);
 	const seconds = padNumber(date.getSeconds(), 2);
-	if (format === "HH:mm") {
-		return `${hours}:${minutes}`;
-	}
 	return `${hours}:${minutes}:${seconds}`;
 }
 

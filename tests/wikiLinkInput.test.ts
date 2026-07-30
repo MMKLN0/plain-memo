@@ -101,8 +101,8 @@ test("shows paths when duplicate basenames need disambiguation", () => {
 });
 
 test("filters Knomo internal WikiLink candidates", () => {
-	assert.equal(isKnomoInternalWikiLinkCandidate("Knomo/_knomo-system/indexes/memo-index-2026-06.json"), true);
-	assert.equal(isKnomoInternalWikiLinkCandidate("Knomo/_knomo-system/backups/rebuild/Plan.md"), true);
+	assert.equal(isKnomoInternalWikiLinkCandidate("plain_memo/_knomo-trash/old.md"), true);
+	assert.equal(isKnomoInternalWikiLinkCandidate("Notes/indexes/Plan.md"), false);
 	assert.equal(isKnomoInternalWikiLinkCandidate("Notes/Plan.md"), false);
 });
 

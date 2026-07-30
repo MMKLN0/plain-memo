@@ -26,7 +26,7 @@ export class PinnedMemoService {
 	}
 
 	async unpin(path: string): Promise<void> {
-		if (this.isPinned(path)) return;
+		if (!this.isPinned(path)) return;
 		await this.save({ ...this.snapshot, paths: this.snapshot.paths.filter((item) => item !== path) });
 	}
 

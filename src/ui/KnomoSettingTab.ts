@@ -5,7 +5,6 @@ import { t } from "../i18n";
 import type { FileMemoOrchestrator } from "../services/FileMemoOrchestrator";
 import { FlomoImportService } from "../services/FlomoImportService";
 import { MemoFilenameImportService } from "../services/MemoFilenameImportService";
-import type { ObsidianExcludeService } from "../services/ObsidianExcludeService";
 import type { SettingsService } from "../services/SettingsService";
 import type { PinnedMemoService } from "../services/PinnedMemoService";
 import { normalizeVaultPath } from "../utils/path";
@@ -20,7 +19,6 @@ export class KnomoSettingTab extends PluginSettingTab {
 		private readonly settings: SettingsService,
 		private readonly store: FileMemoOrchestrator,
 		private readonly pinnedMemos: PinnedMemoService,
-		_exclude: ObsidianExcludeService,
 		private readonly onSettingsChanged: () => Promise<void> = async () => undefined,
 	) {
 		super(app, plugin);

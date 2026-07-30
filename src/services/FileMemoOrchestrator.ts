@@ -1,14 +1,16 @@
 import { TFile, normalizePath } from "obsidian";
 import type { App } from "obsidian";
 
-import type { DailyNotesStatus } from "./DailyNoteService";
-import type { CreateMemoOptions, CreateMemoResult } from "./memoCommands";
-import type { DeletedMemoSummary } from "./memoQueries";
 import { RecordStatsBuilder, type PreparedRecordStats } from "./RecordStatsService";
-import type { ScanDailyMemosResult } from "./MemoScanService";
-import type { TimeBuoyAllQueryResult, TimeBuoyQueryResult } from "./TimeBuoyQueryService";
-import type { TimeBuoyRebuildOptions, TimeBuoyRebuildResult } from "./TimeBuoyRebuildService";
 import { MarkdownBlockService } from "./MarkdownBlockService";
+import type {
+	CreateMemoOptions,
+	CreateMemoResult,
+	DeletedMemoSummary,
+	MemoStoreStatus,
+	TimeBuoyAllQueryResult,
+	TimeBuoyQueryResult,
+} from "../types/fileMemo";
 import type { MemoRecord } from "../types/memo";
 import type { KnomoSettings } from "../types/settings";
 import { formatLocalIsoString, formatMonthPeriod } from "../utils/date";
@@ -60,7 +62,7 @@ export class FileMemoOrchestrator {
 
 	constructor(private readonly app: App, private readonly getSettings: GetSettings) {}
 
-	getDailyNotesStatus(): DailyNotesStatus {
+	getDailyNotesStatus(): MemoStoreStatus {
 		const defaultFolder = this.getSettings().defaultMemoFolder ?? "";
 		const configured = defaultFolder.length > 0;
 		return {
@@ -154,9 +156,6 @@ export class FileMemoOrchestrator {
 		const plan = this.createMemoLoadPlan();
 		return (await this.loadMemoPage(plan, 0, MOBILE_INITIAL_MEMO_COUNT)).memos;
 	}
-	listMemoIndexPeriods(): string[] { return []; }
-	async listMemosInPeriods(_periods: string[]): Promise<MemoRecord[]> { return this.listActiveFiles(); }
-
 	/** Builds a content-free, stable snapshot used by count-based mobile pagination. */
 	createMemoLoadPlan(): string[] {
 		return this.app.vault.getMarkdownFiles()
@@ -258,33 +257,6 @@ export class FileMemoOrchestrator {
 				|| right.memo.createdAt.localeCompare(left.memo.createdAt));
 		return { items, stale: [], missingPeriods: [], complete: true };
 	}
-
-	async rebuildTimeBuoyIndex(options: TimeBuoyRebuildOptions = {}): Promise<TimeBuoyRebuildResult> {
-		const memos = await this.listActiveFiles();
-		let indexed = 0;
-		for (let index = 0; index < memos.length; index += 1) {
-			if (options.isCancelled?.()) return { status: "cancelled", total: memos.length, indexed, skipped: 0, periods: [] };
-			indexed += extractTimeBuoyDates(memos[index].contentSnapshot).length;
-			await options.onProgress?.({
-				completed: index + 1,
-				total: memos.length,
-				indexed,
-				skipped: 0,
-				currentPath: memos[index].dailyRef.path,
-			});
-			await options.yieldToUi?.();
-		}
-		return { status: "completed", total: memos.length, indexed, skipped: 0, periods: [] };
-	}
-
-	async needsTimeBuoyStartupRebuild(): Promise<boolean> { return false; }
-
-	async scanRecentDailyMemos(_days: number, _source?: string): Promise<ScanDailyMemosResult> {
-		const scannedFiles = (await this.listActiveFiles()).length;
-		return { scannedFiles, created: 0, updated: 0, deleted: 0, skipped: scannedFiles, failed: 0, errors: [] };
-	}
-
-	async recoverPendingMemoCreates(): Promise<number> { return 0; }
 
 	private async listActiveFiles(): Promise<MemoRecord[]> {
 		const plan = this.createMemoLoadPlan();

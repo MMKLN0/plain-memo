@@ -6,8 +6,6 @@ import { KNOMO_LOGO_ICON, registerKnomoIcons } from "./icons";
 import { t } from "./i18n";
 import { AttachmentService } from "./services/AttachmentService";
 import { FileMemoOrchestrator } from "./services/FileMemoOrchestrator";
-import { MarkdownBlockService } from "./services/MarkdownBlockService";
-import { ObsidianExcludeService } from "./services/ObsidianExcludeService";
 import { PluginDataStore } from "./services/PluginDataStore";
 import { PinnedMemoService } from "./services/PinnedMemoService";
 import { RandomReunionService } from "./services/RandomReunionService";
@@ -35,7 +33,7 @@ export default class KnomoPlugin extends Plugin {
 		registerKnomoIcons();
 		const dataStore = new PluginDataStore(this);
 		this.pinnedMemoService = new PinnedMemoService(dataStore);
-		this.settingsService = new SettingsService(this, undefined, dataStore);
+		this.settingsService = new SettingsService(this, dataStore);
 		try {
 			await this.settingsService.loadSettings();
 		} catch {
@@ -43,9 +41,8 @@ export default class KnomoPlugin extends Plugin {
 		}
 		await this.pinnedMemoService.load();
 		this.syncOrchestrator = new FileMemoOrchestrator(this.app, () => this.settingsService.getSettings());
-		const markdown = new MarkdownBlockService();
 		const attachmentService = new AttachmentService(this.app);
-		const referenceService = new ReferenceService(this.app, markdown);
+		const referenceService = new ReferenceService(this.app);
 		this.viewRefreshScheduler = new ViewRefreshScheduler(
 			() => this.app.workspace.containerEl.win,
 			() => this.refreshOpenViews(),
@@ -64,7 +61,6 @@ export default class KnomoPlugin extends Plugin {
 			this.settingsService,
 			this.syncOrchestrator,
 			this.pinnedMemoService,
-			new ObsidianExcludeService(this.app),
 			() => this.refreshOpenViews(true),
 		));
 		this.registerMemoFileEvents();
@@ -98,7 +94,7 @@ export default class KnomoPlugin extends Plugin {
 	private registerMemoFileEvents(): void {
 		this.registerEvent(this.app.vault.on("create", (file) => { this.handleMemoFileChange(file.path); }));
 		this.registerEvent(this.app.vault.on("modify", (file) => { this.handleMemoFileChange(file.path); }));
-		this.registerEvent(this.app.vault.on("delete", (file) => { this.handleMemoFileChange(file.path); }));
+		this.registerEvent(this.app.vault.on("delete", (file) => { this.handleMemoFileChange(file.path, true); }));
 		this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
 			if (!this.syncOrchestrator.isRelevantVaultPath(file.path) || file.path.includes("/_knomo-trash/")) {
 				void this.pinnedMemoService.removePath(oldPath);
@@ -113,8 +109,8 @@ export default class KnomoPlugin extends Plugin {
 		}));
 	}
 
-	private handleMemoFileChange(path: string): void {
-		void this.pinnedMemoService.removePath(path);
+	private handleMemoFileChange(path: string, removePinned = false): void {
+		if (removePinned) void this.pinnedMemoService.removePath(path);
 		if (!this.syncOrchestrator.isRelevantVaultPath(path)) return;
 		this.syncOrchestrator.invalidatePath(path);
 		void this.queueRefreshOpenViews();
@@ -142,9 +138,7 @@ export default class KnomoPlugin extends Plugin {
 	}
 	private async manualRefresh() {
 		this.syncOrchestrator.invalidateAll();
-		const result = await this.syncOrchestrator.scanRecentDailyMemos(0);
 		await this.refreshOpenViews(true);
-		return result;
 	}
 	private broadcastMemoMutation(mutation: MemoMutation, source: KnomoView): void {
 		for (const leaf of this.app.workspace.getLeavesOfType(KNOMO_VIEW_TYPE)) if (leaf.view instanceof KnomoView && leaf.view !== source) leaf.view.applyMemoMutation(mutation);

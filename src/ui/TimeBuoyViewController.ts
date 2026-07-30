@@ -1,7 +1,5 @@
 import type { MemoMutation, MemoRecord } from "../types/memo";
-import type { TimeBuoyAllQueryResult, TimeBuoyQueryItem, TimeBuoyQueryResult } from "../services/TimeBuoyQueryService";
-import type { TimeBuoyRebuildResult } from "../services/TimeBuoyRebuildService";
-import type { TimeBuoyRebuildOptions, TimeBuoyRebuildProgress } from "../services/TimeBuoyRebuildService";
+import type { TimeBuoyAllQueryResult, TimeBuoyQueryItem, TimeBuoyQueryResult } from "../types/fileMemo";
 import { formatTimeBuoyDate } from "../utils/timeBuoyDate";
 import { hasTimeBuoyDate } from "../utils/timeBuoyParser";
 import { getMemoRenderRevision } from "./MemoRenderRevision";
@@ -22,8 +20,6 @@ export interface TimeBuoyViewSnapshot {
 	today: TimeBuoyTabItem[];
 	upcoming: TimeBuoyTabItem[];
 	past: TimeBuoyTabItem[];
-	rebuilding: boolean;
-	rebuildProgress: TimeBuoyRebuildProgress | null;
 }
 
 export function mergeTodayTimeBuoyFeed(
@@ -43,14 +39,12 @@ interface TimeBuoyViewControllerOptions {
 	getNow: () => Date;
 	queryAll: () => Promise<TimeBuoyAllQueryResult>;
 	queryDate: (date: string) => Promise<TimeBuoyQueryResult>;
-	rebuild: (options?: TimeBuoyRebuildOptions) => Promise<TimeBuoyRebuildResult>;
 	requestRender: () => void;
 }
 
 export class TimeBuoyViewController {
 	private snapshot: TimeBuoyViewSnapshot;
 	private requestId = 0;
-	private rebuildCancelled = false;
 	private hasLoadedAll = false;
 
 	constructor(private readonly options: TimeBuoyViewControllerOptions) {
@@ -203,38 +197,7 @@ export class TimeBuoyViewController {
 		await this.loadInitial();
 	}
 
-	async rebuild(): Promise<void> {
-		if (this.snapshot.rebuilding) {
-			return;
-		}
-		this.rebuildCancelled = false;
-		this.snapshot = { ...this.snapshot, rebuilding: true, rebuildProgress: null, error: null };
-		this.options.requestRender();
-		try {
-			const result = await this.options.rebuild({
-				isCancelled: () => this.rebuildCancelled,
-				onProgress: (progress) => {
-					this.snapshot = { ...this.snapshot, rebuildProgress: progress };
-					this.options.requestRender();
-				},
-			});
-			if (result.status === "completed") {
-				await this.loadInitial();
-				return;
-			}
-			this.snapshot = { ...this.snapshot, rebuilding: false, rebuildProgress: null };
-		} catch (error) {
-			this.snapshot = { ...this.snapshot, rebuilding: false, rebuildProgress: null, error };
-		}
-		this.options.requestRender();
-	}
-
-	cancelRebuild(): void {
-		this.rebuildCancelled = true;
-	}
-
 	clear(): void {
-		this.rebuildCancelled = true;
 		this.requestId += 1;
 		this.hasLoadedAll = false;
 		this.snapshot = createInitialSnapshot();
@@ -251,9 +214,7 @@ function areTimeBuoySnapshotsEqual(
 		&& left.activeTab === right.activeTab
 		&& areTimeBuoyTabItemsEqual(left.today, right.today)
 		&& areTimeBuoyTabItemsEqual(left.upcoming, right.upcoming)
-		&& areTimeBuoyTabItemsEqual(left.past, right.past)
-		&& left.rebuilding === right.rebuilding
-		&& left.rebuildProgress === right.rebuildProgress;
+		&& areTimeBuoyTabItemsEqual(left.past, right.past);
 }
 
 function areTimeBuoyTabItemsEqual(
@@ -279,8 +240,6 @@ function createInitialSnapshot(activeTab: TimeBuoyTab = "today"): TimeBuoyViewSn
 		today: [],
 		upcoming: [],
 		past: [],
-		rebuilding: false,
-		rebuildProgress: null,
 	};
 }
 

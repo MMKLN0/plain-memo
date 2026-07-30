@@ -13,8 +13,7 @@ import type { ReferenceService } from "../services/ReferenceService";
 import type { SettingsService } from "../services/SettingsService";
 import type { ShuffleDayService } from "../services/ShuffleDayService";
 import { MOBILE_INITIAL_MEMO_COUNT, type FileMemoOrchestrator } from "../services/FileMemoOrchestrator";
-import type { TimeBuoyMaintenanceOutcome } from "../services/TimeBuoyService";
-import type { ScanDailyMemosResult } from "../services/MemoScanService";
+import type { TimeBuoyMaintenanceOutcome } from "../types/fileMemo";
 import type { MemoMutation, MemoRecord } from "../types/memo";
 import { applyListFormatToText, getHashInsertionText, getListEnterPatch, getListEnterPatchForNativeInput } from "../utils/composerInput";
 import type { TextReplacement } from "../utils/composerInput";
@@ -514,7 +513,7 @@ export class KnomoView extends ItemView {
 		private readonly pinnedMemos: PinnedMemoService,
 		private readonly onMemoMutation: (mutation: MemoMutation, sourceView: KnomoView) => void,
 		private readonly onForceRefreshViews: () => Promise<void>,
-		private readonly onManualRefresh: () => Promise<ScanDailyMemosResult>,
+		private readonly onManualRefresh: () => Promise<void>,
 	) {
 		super(leaf);
 		this.popupState = new KnomoPopupState(() => this.containerEl.win);
@@ -727,12 +726,6 @@ export class KnomoView extends ItemView {
 				date,
 				this.getLoadedMobileMemosForAuxiliaryQuery(),
 			),
-			rebuild: (options = {}) => this.syncOrchestrator.rebuildTimeBuoyIndex({
-				...options,
-				yieldToUi: () => new Promise<void>((resolve) => {
-					this.containerEl.win.setTimeout(resolve, 0);
-				}),
-			}),
 			requestRender: () => {
 				if (this.activeNav === "time-buoy") {
 					this.renderCardFlow();
@@ -885,8 +878,6 @@ export class KnomoView extends ItemView {
 			goToNextRecordStatsPeriod: () => this.goToNextRecordStatsPeriod(),
 			retryRecordStats: () => this.retryRecordStats(),
 			retryTimeBuoy: () => this.timeBuoyViewController.retry(),
-			rebuildTimeBuoy: () => this.timeBuoyViewController.rebuild(),
-			cancelTimeBuoyRebuild: () => this.timeBuoyViewController.cancelRebuild(),
 			setTimeBuoyTab: (tab) => this.setTimeBuoyTabFromAction(tab),
 			loadMoreTimeBuoyCards: () => this.renderNextTimeBuoyBatch(this.renderGeneration),
 			openTimeBuoy: () => this.setSidebarNav("time-buoy"),
@@ -1038,6 +1029,17 @@ export class KnomoView extends ItemView {
 			await this.render();
 			return;
 		}
+		if (forceRebuild) {
+			await this.waitForAllMemosLoading();
+			this.mobileMemoHydrator.cancel();
+			await this.loadInitialMemos();
+			if (this.activeNav === "time-buoy") {
+				await this.timeBuoyViewController.loadInitial();
+			} else if (this.activeNav === "trash") {
+				await this.trashMemoController.loadTrashMemos();
+			}
+			return;
+		}
 		if (this.activeNav === "time-buoy") {
 			await this.timeBuoyViewController.loadInitial();
 			return;
@@ -1105,7 +1107,9 @@ export class KnomoView extends ItemView {
 			void this.timeBuoyViewController.loadTodayOnly();
 		}
 
-		if (previousCardFlowKey !== this.getCardFlowStateKey()) {
+		if (this.shouldExtractPinnedMemos() && this.pinnedMemos.isPinned(mutation.memo.id)) {
+			this.forceRebuildCardFlow();
+		} else if (previousCardFlowKey !== this.getCardFlowStateKey()) {
 			this.renderCardFlow(options.preserveCardMemoId ?? null);
 		}
 		if (options.preserveCardMemoId !== undefined) {
@@ -1215,7 +1219,7 @@ export class KnomoView extends ItemView {
 		this.renderStats();
 		this.renderTags();
 		this.renderTrashCount();
-		void this.loadInitialMobileMemos();
+		void this.loadInitialMemos();
 		if (this.settingsService.getSettings().timeBuoyEnabled) {
 			if (this.activeNav === "time-buoy") {
 				void this.timeBuoyViewController.loadInitial();
@@ -1561,7 +1565,7 @@ export class KnomoView extends ItemView {
 		return loaded;
 	}
 
-	private async loadInitialMobileMemos(): Promise<void> {
+	private async loadInitialMemos(): Promise<void> {
 		const runId = this.mobileMemoHydrator.getSnapshot().runId;
 		try {
 			const plan = this.syncOrchestrator.createMemoLoadPlan();
@@ -3466,13 +3470,6 @@ export class KnomoView extends ItemView {
 	}
 
 	private showTimeBuoySaveFeedback(outcome: TimeBuoyMaintenanceOutcome): void {
-		if (outcome.status === "disabled") {
-			return;
-		}
-		if (outcome.status === "failed") {
-			new Notice(t("timeBuoy.saved.indexFailed"));
-			return;
-		}
 		if (outcome.dates.length === 0) {
 			return;
 		}
@@ -3488,26 +3485,9 @@ export class KnomoView extends ItemView {
 		this.isManualRefreshing = true;
 		this.syncManualRefreshButtonState();
 		try {
-			if (this.activeNav === "trash") {
-				await this.trashMemoController.loadTrashMemos();
-				if (this.trashMemoController.getSnapshot().trashError === null) {
-					new Notice(t("notice.trashRefreshed"));
-				}
-				return;
-			}
 			try {
-				const result = await this.onManualRefresh();
-				const failed = result.failed;
-				if (failed > 0) {
-					const message = t("notice.refreshFailedCount", { count: failed });
-					new Notice(message);
-					return;
-				}
-				if (result.created > 0 || result.updated > 0 || result.deleted > 0) {
-					new Notice(t("notice.refreshComplete", { created: result.created, updated: result.updated, deleted: result.deleted }));
-					return;
-				}
-				new Notice(t("notice.upToDate"));
+				await this.onManualRefresh();
+				new Notice(t("notice.refreshCompleteSimple"));
 			} catch (error) {
 				const message = formatServiceError(error, t("error.refreshFailed"));
 				new Notice(message);
@@ -5695,8 +5675,10 @@ export class KnomoView extends ItemView {
 			this.containerEl.win.innerHeight - anchorTop + (fab === null ? 8 : MOBILE_COLLAPSE_BUTTON_FAB_GAP),
 		);
 		candidate.button.addClass("is-viewport-floating");
-		candidate.button.style.setProperty("--knomo-floating-collapse-bottom", `${Math.round(bottom)}px`);
-		candidate.button.style.setProperty("--knomo-floating-collapse-right", `${Math.round(right)}px`);
+		candidate.button.setCssProps({
+			"--knomo-floating-collapse-bottom": `${Math.round(bottom)}px`,
+			"--knomo-floating-collapse-right": `${Math.round(right)}px`,
+		});
 	}
 
 	private handleTrashRenderRequest(target: TrashMemoRenderTarget): void {
@@ -5909,7 +5891,7 @@ export class KnomoView extends ItemView {
 		if (sourcePath !== null) {
 			return sourcePath;
 		}
-		const message = t("composer.enableDailyOrOpenMarkdown");
+		const message = t("composer.chooseFolderOrOpenMarkdown");
 		this.updateStatus(message, true);
 		new Notice(message);
 		return null;

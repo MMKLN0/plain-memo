@@ -2,11 +2,5 @@ export const KNOMO_VIEW_TYPE = "plain-memo-view";
 export const KNOMO_VIEW_DISPLAY_TEXT = "PlainMemo";
 
 export const SETTINGS_VERSION = 3;
-export const DEFAULT_DAILY_HEADING = "## Memos";
-export const DEFAULT_MEMO_TIME_FORMAT = "HH:mm:ss";
-export const DEFAULT_MONTHLY_MEMO_FOLDER = "plain_memo";
-export const DEFAULT_MONTHLY_MEMO_FILE_FORMAT = "Memos-YYYY-MM.md";
-export const DEFAULT_MONTHLY_DATE_HEADING_FORMAT = "## [[YYYY-MM-DD]]";
-export const DEFAULT_MONTHLY_DATE_ORDER = "asc";
-export const DEFAULT_SYNC_DEBOUNCE_MS = 1000;
+export const DEFAULT_MEMO_FOLDER = "plain_memo";
 export const DEFAULT_DESKTOP_SIDEBAR_WIDTH = 248;

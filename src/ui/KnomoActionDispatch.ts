@@ -22,8 +22,6 @@ export type KnomoSimpleAction =
 	| "record-stats-retry"
 	| "retry-all-memos"
 	| "retry-time-buoy"
-	| "rebuild-time-buoy"
-	| "cancel-time-buoy-rebuild"
 	| "time-buoy-tab-today"
 	| "time-buoy-tab-upcoming"
 	| "time-buoy-tab-past"
@@ -88,8 +86,6 @@ export function getKnomoActionDispatch(action: string | null): KnomoActionDispat
 		action === "record-stats-retry" ||
 		action === "retry-all-memos" ||
 		action === "retry-time-buoy" ||
-		action === "rebuild-time-buoy" ||
-		action === "cancel-time-buoy-rebuild" ||
 		action === "time-buoy-tab-today" ||
 		action === "time-buoy-tab-upcoming" ||
 		action === "time-buoy-tab-past" ||

@@ -253,11 +253,11 @@ test("prepares statistics from a scanned source key", async () => {
 	]);
 	let loadCalls = 0;
 
-	assert.equal(await service.prepareFromSource("memo-index:1", async () => {
+	assert.equal(await service.prepareFromSource("memo-files:1", async () => {
 		loadCalls += 1;
 		return builder.build();
 	}), true);
-	assert.equal(await service.prepareFromSource("memo-index:1", async () => {
+	assert.equal(await service.prepareFromSource("memo-files:1", async () => {
 		loadCalls += 1;
 		return null;
 	}), true);

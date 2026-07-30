@@ -27,7 +27,7 @@ export class RecordStatsPreparationController {
 	}
 
 	get sourceKey(): string {
-		return `memo-index:${this.sourceRevision}`;
+		return `memo-files:${this.sourceRevision}`;
 	}
 
 	hasActiveRequest(): boolean {

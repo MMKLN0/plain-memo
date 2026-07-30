@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { TimeBuoyAllQueryResult, TimeBuoyQueryItem, TimeBuoyQueryResult } from "../src/services/TimeBuoyQueryService";
+import type { TimeBuoyAllQueryResult, TimeBuoyQueryItem, TimeBuoyQueryResult } from "../src/types/fileMemo";
 import type { MemoRecord } from "../src/types/memo";
 import { mergeTodayTimeBuoyFeed, TimeBuoyViewController } from "../src/ui/TimeBuoyViewController";
 
@@ -60,7 +60,6 @@ test("shows a blocking loading state only for the first complete Time buoy load"
 		getNow: () => new Date(2026, 6, 11),
 		queryAll: () => firstQuery.promise,
 		queryDate: async () => EMPTY_RESULT,
-		rebuild: async () => ({ status: "completed", total: 0, indexed: 0, skipped: 0, periods: [] }),
 		requestRender: () => {
 			renderCount += 1;
 		},
@@ -97,7 +96,6 @@ test("keeps complete Time buoy content visible and skips rendering when a warm r
 				: refreshQuery.promise;
 		},
 		queryDate: async () => EMPTY_RESULT,
-		rebuild: async () => ({ status: "completed", total: 0, indexed: 0, skipped: 0, periods: [] }),
 		requestRender: () => {
 			renderCount += 1;
 		},
@@ -125,7 +123,6 @@ test("keeps a tab selected while a warm Time buoy refresh is pending", async () 
 			return queryCount === 1 ? Promise.resolve(EMPTY_ALL_RESULT) : refreshQuery.promise;
 		},
 		queryDate: async () => EMPTY_RESULT,
-		rebuild: async () => ({ status: "completed", total: 0, indexed: 0, skipped: 0, periods: [] }),
 		requestRender: () => undefined,
 	});
 	await controller.loadInitial();
@@ -154,7 +151,6 @@ test("restores the blocking loading state when retrying after a warm refresh fai
 			return retryQuery.promise;
 		},
 		queryDate: async () => EMPTY_RESULT,
-		rebuild: async () => ({ status: "completed", total: 0, indexed: 0, skipped: 0, periods: [] }),
 		requestRender: () => undefined,
 	});
 	await controller.loadInitial();
@@ -188,7 +184,6 @@ test("renders a warm Time buoy refresh exactly once when its content changes", a
 		getNow: () => new Date(2026, 6, 11),
 		queryAll: async () => result,
 		queryDate: async () => EMPTY_RESULT,
-		rebuild: async () => ({ status: "completed", total: 0, indexed: 0, skipped: 0, periods: [] }),
 		requestRender: () => {
 			renderCount += 1;
 		},
@@ -214,7 +209,6 @@ test("a today-only query does not suppress the first complete Time buoy loading 
 			stale: [],
 			missingPeriods: [],
 		}),
-		rebuild: async () => ({ status: "completed", total: 0, indexed: 0, skipped: 0, periods: [] }),
 		requestRender: () => {
 			renderCount += 1;
 		},
@@ -238,7 +232,6 @@ test("clear restores the blocking state for the next complete Time buoy load", a
 		getNow: () => new Date(2026, 6, 11),
 		queryAll: () => useDeferredQuery ? nextQuery.promise : Promise.resolve(EMPTY_ALL_RESULT),
 		queryDate: async () => EMPTY_RESULT,
-		rebuild: async () => ({ status: "completed", total: 0, indexed: 0, skipped: 0, periods: [] }),
 		requestRender: () => undefined,
 	});
 	await controller.loadInitial();
@@ -263,7 +256,6 @@ test("today-only refresh requests render only when the visible result changes", 
 		getNow: () => new Date(2026, 6, 11),
 		queryAll: async () => EMPTY_ALL_RESULT,
 		queryDate: async () => result,
-		rebuild: async () => ({ status: "completed", total: 0, indexed: 0, skipped: 0, periods: [] }),
 		requestRender: () => {
 			renderCount += 1;
 		},
@@ -295,7 +287,6 @@ test("today-only refresh preserves the last successful result when the index bec
 		getNow: () => new Date(2026, 6, 11),
 		queryAll: async () => EMPTY_ALL_RESULT,
 		queryDate: async () => result,
-		rebuild: async () => ({ status: "completed", total: 0, indexed: 0, skipped: 0, periods: [] }),
 		requestRender: () => undefined,
 	});
 	await controller.loadTodayOnly();
@@ -333,7 +324,6 @@ test("checkbox mutation with images does not trigger a competing Time buoy rende
 			stale: [],
 			missingPeriods: [],
 		}),
-		rebuild: async () => ({ status: "completed", total: 0, indexed: 0, skipped: 0, periods: [] }),
 		requestRender: () => {
 			renderCount += 1;
 		},
@@ -422,35 +412,6 @@ test("switches tabs without querying again and preserves the tab through reload"
 	assert.equal(controller.getSnapshot().activeTab, "upcoming");
 });
 
-test("reports rebuild progress and supports cancellation before commit", async () => {
-	let finishRebuild: () => void = () => undefined;
-	let cancelled = false;
-	const controller = new TimeBuoyViewController({
-		getNow: () => new Date(2026, 6, 11),
-		queryAll: async () => EMPTY_ALL_RESULT,
-		queryDate: async () => EMPTY_RESULT,
-		rebuild: async (options = {}) => {
-			await options.onProgress?.({ total: 10, completed: 4, indexed: 4, skipped: 0, currentPath: "Daily/2026-07-01.md" });
-			await new Promise<void>((resolve) => {
-				finishRebuild = resolve;
-			});
-			cancelled = options.isCancelled?.() === true;
-			return { status: "cancelled", total: 10, indexed: 4, skipped: 0, periods: [] };
-		},
-		requestRender: () => undefined,
-	});
-
-	const rebuilding = controller.rebuild();
-	await Promise.resolve();
-	assert.equal(controller.getSnapshot().rebuildProgress?.completed, 4);
-	controller.cancelRebuild();
-	finishRebuild();
-	await rebuilding;
-
-	assert.equal(cancelled, true);
-	assert.equal(controller.getSnapshot().rebuilding, false);
-});
-
 test("removes a deleted memo from visible buoy sections immediately", async () => {
 	const memo = { id: "memo-1", contentSnapshot: "回看 @2026-07-11", status: "active" } as MemoRecord;
 	let result: TimeBuoyAllQueryResult = {
@@ -474,7 +435,6 @@ test("removes a deleted memo from visible buoy sections immediately", async () =
 			stale: [],
 			missingPeriods: [],
 		}),
-		rebuild: async () => ({ status: "completed", total: 0, indexed: 0, skipped: 0, periods: [] }),
 		requestRender: () => {
 			renderCount += 1;
 		},
@@ -502,7 +462,6 @@ function createController(
 		getNow: () => now,
 		queryAll,
 		queryDate: async () => EMPTY_RESULT,
-		rebuild: async () => ({ status: "completed", total: 0, indexed: 0, skipped: 0, periods: [] }),
 		requestRender: () => undefined,
 	});
 }
