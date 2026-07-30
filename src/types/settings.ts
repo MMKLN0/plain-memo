@@ -11,6 +11,7 @@ export interface KnomoSettings {
 	/** The folder used when the composer creates a new memo. */
 	defaultMemoFolder?: string;
 	memoCollapseLineThreshold?: number;
+	pinnedMemoLimit?: number;
 	dailyHeading: string;
 	dailyInsertPosition: DailyInsertPosition;
 	memoTimeFormat: MemoTimeFormat;

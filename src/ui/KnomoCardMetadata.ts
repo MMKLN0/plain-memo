@@ -69,8 +69,9 @@ export function getMemoActionClass(action: MemoAction): string {
 	return action === "delete" ? "knomo-card-action is-danger" : "knomo-card-action";
 }
 
-export function getMemoCardActions(): MemoCardActionMeta[] {
-	return MEMO_CARD_ACTIONS.map((action) => ({
+export function getMemoCardActions(pinned: boolean): MemoCardActionMeta[] {
+	const actions: MemoAction[] = [...MEMO_CARD_ACTIONS.slice(0, -1), pinned ? "unpin" : "pin", "delete"];
+	return actions.map((action) => ({
 		action,
 		className: getMemoActionClass(action),
 	}));

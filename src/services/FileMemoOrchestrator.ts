@@ -193,6 +193,12 @@ export class FileMemoOrchestrator {
 		return { memos, nextOffset: end, total: plan.length };
 	}
 
+	/** Reads explicitly selected memo paths without scanning the rest of the vault. */
+	async loadMemosByPath(paths: readonly string[]): Promise<MemoRecord[]> {
+		const memos = await Promise.all(paths.map((path) => this.readPlannedPath(path)));
+		return memos.filter((memo): memo is MemoRecord => memo !== null);
+	}
+
 	async getDeletedMemoSummary(): Promise<DeletedMemoSummary> {
 		const memos = await this.listDeletedMemos();
 		return { count: memos.length, ids: memos.map((memo) => memo.id) };

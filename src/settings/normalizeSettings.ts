@@ -98,6 +98,10 @@ export function normalizeSettings(value: unknown): KnomoSettings {
 			merged.memoCollapseLineThreshold,
 			DEFAULT_KNOMO_SETTINGS.memoCollapseLineThreshold ?? 8,
 		))),
+		pinnedMemoLimit: Math.min(20, Math.max(1, Math.floor(numberOrDefault(
+			merged.pinnedMemoLimit,
+			DEFAULT_KNOMO_SETTINGS.pinnedMemoLimit ?? 3,
+		)))),
 		dailyHeading: stringOrDefault(merged.dailyHeading, DEFAULT_KNOMO_SETTINGS.dailyHeading),
 		dailyInsertPosition,
 		memoTimeFormat,

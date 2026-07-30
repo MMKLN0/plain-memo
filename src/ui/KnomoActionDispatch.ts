@@ -1,5 +1,5 @@
 export type ComposerToolAction = "insert-tag" | "insert-wiki-link" | "insert-image" | "insert-time-buoy" | "insert-list" | "insert-numbered-list";
-export type MemoAction = "edit" | "reference" | "open-daily" | "copy-text" | "copy-link" | "delete";
+export type MemoAction = "edit" | "reference" | "open-daily" | "copy-text" | "copy-link" | "pin" | "unpin" | "delete";
 export type TrashAction = "restore" | "purge";
 export type KnomoSimpleAction =
 	| "toggle-card-menu"
@@ -161,6 +161,8 @@ export function isMemoAction(action: string): action is MemoAction {
 		action === "open-daily" ||
 		action === "copy-text" ||
 		action === "copy-link" ||
+		action === "pin" ||
+		action === "unpin" ||
 		action === "delete";
 }
 

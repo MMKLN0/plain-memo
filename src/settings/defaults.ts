@@ -16,6 +16,7 @@ export const DEFAULT_KNOMO_SETTINGS: KnomoSettings = {
 	memoFolders: ["plain_memo"],
 	defaultMemoFolder: "plain_memo",
 	memoCollapseLineThreshold: 8,
+	pinnedMemoLimit: 3,
 	dailyHeading: DEFAULT_DAILY_HEADING,
 	dailyInsertPosition: "bottom",
 	memoTimeFormat: DEFAULT_MEMO_TIME_FORMAT,

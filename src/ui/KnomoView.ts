@@ -6,6 +6,7 @@ import { KNOMO_LOGO_ICON, KNOMO_SEARCH_ICON } from "../icons";
 import { t } from "../i18n";
 import type { AttachmentService } from "../services/AttachmentService";
 import type { RandomReunionService } from "../services/RandomReunionService";
+import type { PinnedMemoService } from "../services/PinnedMemoService";
 import { RecordStatsService } from "../services/RecordStatsService";
 import type { RecordStatsView } from "../services/RecordStatsService";
 import type { ReferenceService } from "../services/ReferenceService";
@@ -208,6 +209,7 @@ const DESKTOP_CARD_IMAGE_LOAD_CONCURRENCY = 2;
 const CARD_IMAGE_LOAD_WATCHDOG_MS = 10_000;
 const SEARCH_DEBOUNCE_MS = 220;
 const TIME_BUOY_PICKER_CLOSE_FALLBACK_MS = 280;
+const MOBILE_COLLAPSE_BUTTON_FAB_GAP = 20;
 const MOBILE_VIEW_HEADER_SELECTORS = [
 	".workspace-leaf.mod-active .view-header",
 	".mod-active .view-header",
@@ -509,6 +511,7 @@ export class KnomoView extends ItemView {
 		private readonly randomReunionService: RandomReunionService,
 		private readonly shuffleDayService: ShuffleDayService,
 		private readonly attachmentService: AttachmentService,
+		private readonly pinnedMemos: PinnedMemoService,
 		private readonly onMemoMutation: (mutation: MemoMutation, sourceView: KnomoView) => void,
 		private readonly onForceRefreshViews: () => Promise<void>,
 		private readonly onManualRefresh: () => Promise<ScanDailyMemosResult>,
@@ -655,7 +658,7 @@ export class KnomoView extends ItemView {
 				: MARKDOWN_RENDER_CONCURRENCY,
 		});
 		this.mobileMemoHydrator = new MobileMemoHydrator({
-			isMobile: () => Platform.isMobile,
+			shouldHydrateIncrementally: () => true,
 			isLoading: () => this.allMemosLoadingPromise !== null,
 			isPaused: () => this.composerOpen || this.containerEl.doc.visibilityState === "hidden",
 			canHydrateCardFlow: () => this.activeNav !== "trash"
@@ -1211,21 +1214,13 @@ export class KnomoView extends ItemView {
 		}
 		this.renderScopeState();
 		this.syncRootState();
-		if (Platform.isMobile) {
-			this.renderStats();
-			this.renderTags();
-			this.renderTrashCount();
-			void this.loadInitialMobileMemos();
-		} else {
-			await this.ensureAllMemosLoaded(true);
-			this.scheduleRecordStatsPreparation();
-			void this.trashMemoController.refreshTrashCount(false);
-		}
+		this.renderStats();
+		this.renderTags();
+		this.renderTrashCount();
+		void this.loadInitialMobileMemos();
 		if (this.settingsService.getSettings().timeBuoyEnabled) {
 			if (this.activeNav === "time-buoy") {
 				void this.timeBuoyViewController.loadInitial();
-			} else if (!Platform.isMobile) {
-				void this.timeBuoyViewController.loadTodayOnly();
 			}
 		}
 	}
@@ -1510,6 +1505,9 @@ export class KnomoView extends ItemView {
 			} else {
 				const page = await this.loadMobileMemoPage(plan, 0, MOBILE_INITIAL_MEMO_COUNT);
 				this.memos = page.memos;
+				const pinned = await this.syncOrchestrator.loadMemosByPath(this.pinnedMemos.getSnapshot().paths);
+				await this.pinnedMemos.retainExistingPaths(pinned.map((memo) => memo.id));
+				this.mergeLoadedMemos(pinned);
 				loadedMemoCount = page.nextOffset;
 			}
 			this.invalidateRecordStats();
@@ -1569,11 +1567,16 @@ export class KnomoView extends ItemView {
 		const runId = this.mobileMemoHydrator.getSnapshot().runId;
 		try {
 			const plan = this.syncOrchestrator.createMemoLoadPlan();
-			const firstPage = await this.loadMobileMemoPage(plan, 0, MOBILE_INITIAL_CARD_BATCH_SIZE);
+			const [firstPage, pinned] = await Promise.all([
+				this.loadMobileMemoPage(plan, 0, MOBILE_INITIAL_CARD_BATCH_SIZE),
+				this.syncOrchestrator.loadMemosByPath(this.pinnedMemos.getSnapshot().paths),
+			]);
 			if (!this.mobileMemoHydrator.isCurrentRun(runId) || this.cardFlowEl === null || !this.cardFlowEl.isConnected) {
 				return;
 			}
 			this.memos = firstPage.memos;
+			await this.pinnedMemos.retainExistingPaths(pinned.map((memo) => memo.id));
+			this.mergeLoadedMemos(pinned);
 			this.invalidateRecordStats();
 			this.mobileMemoHydrator.setInitialLoadSuccess(plan, firstPage.nextOffset);
 			this.cardFlowError = null;
@@ -2403,8 +2406,10 @@ export class KnomoView extends ItemView {
 			&& this.activeNav !== "shuffleDay"
 			&& !(this.activeNav === "random" && randomSnapshot.loading);
 		const todayItems = this.getTodayTimeBuoyItems();
+		const unpinnedMemoIds = this.shouldExtractPinnedMemos() && !this.pinnedMemos.getSnapshot().collapsed
+			? new Set(this.pinnedMemos.getSnapshot().paths) : null;
 		const memos = shouldLoadListMemos
-			? mergeTodayTimeBuoyFeed(this.getFilteredMemos(), todayItems)
+			? mergeTodayTimeBuoyFeed(this.getFilteredMemos().filter((memo) => !unpinnedMemoIds?.has(memo.id)), todayItems)
 			: [];
 		const presentation = getCardFlowPresentation({
 			cardFlowError: this.activeNav === "shuffleDay" ? null : this.cardFlowError,
@@ -2424,6 +2429,9 @@ export class KnomoView extends ItemView {
 			trashError: trashSnapshot.trashError,
 			trashMemos: trashSnapshot.trashMemos,
 		});
+		if (presentation.type === "empty" && this.shouldExtractPinnedMemos() && this.getPinnedMemos().length > 0) {
+			return { type: "items", memos: [], mode: "memo", headers: [] };
+		}
 		if (
 			this.cardFlowError === null
 			&& this.shouldShowTodayTimeBuoys()
@@ -2544,6 +2552,7 @@ export class KnomoView extends ItemView {
 		if (intro !== null) {
 			cardFlow.prepend(intro);
 		}
+		this.renderPinnedMemoSection(cardFlow, this.renderGeneration);
 		this.cardFlowCoordinator.syncBatch(presentation.memos, presentation.mode, visibleMemos.length);
 		this.renderCardFlowSentinelIfNeeded();
 		this.syncCardMenuState();
@@ -2649,6 +2658,7 @@ export class KnomoView extends ItemView {
 			return;
 		}
 		this.renderTimeBuoyIntro(this.cardFlowEl);
+		this.renderPinnedMemoSection(this.cardFlowEl, generation);
 		renderKnomoCardFlowHeaders(this.cardFlowEl, presentation.headers);
 		this.startCardFeed(presentation.memos, presentation.mode, generation, initialBatchSize);
 	}
@@ -2820,6 +2830,7 @@ export class KnomoView extends ItemView {
 				this.memoMarkdownRenderer.queueSourceReferenceMarkdown(content, text, sourcePath, renderGeneration, surface);
 			},
 			collapseLineThreshold: this.settingsService.getSettings().memoCollapseLineThreshold ?? 8,
+			pinned: this.pinnedMemos.isPinned(memo.id),
 			expanded: this.expandedMemoIds.has(memo.id),
 			reusedBodyEl,
 			reusedImagesEl,
@@ -3404,6 +3415,15 @@ export class KnomoView extends ItemView {
 				new Notice(t("notice.copiedLink"));
 				this.syncCardMenuState();
 				return;
+			} else if (action === "pin") {
+				const pinned = await this.pinnedMemos.pin(memo.id, this.settingsService.getSettings().pinnedMemoLimit ?? 3);
+				if (!pinned) new Notice(t("notice.pinnedMemoLimitReached"));
+				this.forceRebuildCardFlow();
+				return;
+			} else if (action === "unpin") {
+				await this.pinnedMemos.unpin(memo.id);
+				this.forceRebuildCardFlow();
+				return;
 			} else if (action === "delete") {
 				const deletedMemo = await this.syncOrchestrator.deleteMemo(memo);
 				new Notice(t("notice.deleted"));
@@ -3916,6 +3936,42 @@ export class KnomoView extends ItemView {
 			this.inputEl.value = this.draftContent;
 		}
 		this.mobileComposerController.closeKeepingDraft();
+	}
+
+	private shouldExtractPinnedMemos(): boolean {
+		return this.isDefaultListState() && this.activeNav === "all" && !this.mobileSearchPageOpen;
+	}
+
+	private getPinnedMemos(): MemoRecord[] {
+		const byPath = new Map(this.memos.map((memo) => [memo.id, memo]));
+		return this.pinnedMemos.getSnapshot().paths.flatMap((path) => {
+			const memo = byPath.get(path);
+			return memo === undefined ? [] : [memo];
+		});
+	}
+
+	private renderPinnedMemoSection(container: HTMLElement, generation: number): void {
+		container.querySelector(".knomo-pinned-memos")?.remove();
+		if (!this.shouldExtractPinnedMemos()) return;
+		const snapshot = this.pinnedMemos.getSnapshot();
+		const memos = this.getPinnedMemos();
+		if (memos.length === 0) return;
+		const section = container.createEl("section", { cls: "knomo-pinned-memos" });
+		container.prepend(section);
+		const header = section.createEl("button", {
+			cls: "knomo-pinned-memos-toggle",
+			attr: { type: "button", "aria-expanded": snapshot.collapsed ? "false" : "true" },
+		});
+		header.createSpan({ text: t("list.pinnedSummary", { count: memos.length }) });
+		setIcon(header.createSpan(), snapshot.collapsed ? "chevron-down" : "chevron-up");
+		this.registerDomEvent(header, "click", () => {
+			void this.pinnedMemos.setCollapsed(!snapshot.collapsed).then(() => this.forceRebuildCardFlow());
+		});
+		if (snapshot.collapsed) return;
+		const cards = section.createDiv({ cls: "knomo-pinned-memos-cards" });
+		for (const [index, memo] of memos.entries()) {
+			this.renderMemoCardInContainer(cards, memo, generation, index, true, false, "card-flow");
+		}
 	}
 
 	private handleMobileComposerBackdropDismiss(): void {
@@ -5336,12 +5392,12 @@ export class KnomoView extends ItemView {
 			return true;
 		}
 		if (this.allMemosLoadingPromise !== null) {
-			if (Platform.isMobile && !forceReload) {
+			if (!forceReload) {
 				this.mobileMemoHydrator.accelerate();
 			}
 			return this.allMemosLoadingPromise;
 		}
-		if (Platform.isMobile && !forceReload) {
+		if (!forceReload) {
 			this.allMemosLoadingPromise = this.mobileMemoHydrator.start(true).finally(() => {
 				this.allMemosLoadingPromise = null;
 			});
@@ -5416,8 +5472,8 @@ export class KnomoView extends ItemView {
 
 	private loadMobileMemoPage(plan: readonly string[], offset: number, limit: number) {
 		return this.syncOrchestrator.loadMemoPage(plan, offset, limit, {
-			concurrency: 4,
-			timeBudgetMs: 4,
+			concurrency: Platform.isMobile ? 4 : 8,
+			timeBudgetMs: Platform.isMobile ? 4 : 8,
 			yieldToUi: () => new Promise<void>((resolve) => {
 				this.containerEl.win.requestAnimationFrame(() => resolve());
 			}),
@@ -5435,7 +5491,7 @@ export class KnomoView extends ItemView {
 	}
 
 	private getLoadedMobileMemosForAuxiliaryQuery(): readonly MemoRecord[] | undefined {
-		return Platform.isMobile && this.mobileMemoHydrator.getSnapshot().allMemosLoaded
+		return this.mobileMemoHydrator.getSnapshot().allMemosLoaded
 			? this.memos
 			: undefined;
 	}
@@ -5654,6 +5710,12 @@ export class KnomoView extends ItemView {
 		}
 		const flowRect = flow.getBoundingClientRect();
 		const viewportBottom = Math.min(flowRect.bottom, this.containerEl.win.innerHeight);
+		const fab = this.currentLayout === "mobile"
+			? this.containerEl.doc.querySelector<HTMLElement>(".knomo-mobile-create-fab")
+			: null;
+		const floatingBoundary = fab === null
+			? viewportBottom
+			: Math.min(viewportBottom, fab.getBoundingClientRect().top - MOBILE_COLLAPSE_BUTTON_FAB_GAP);
 		const candidate = buttons
 			.map((button) => ({
 				button,
@@ -5665,7 +5727,9 @@ export class KnomoView extends ItemView {
 				}
 				const cardRect = item.card.getBoundingClientRect();
 				const buttonRect = item.button.getBoundingClientRect();
-				return cardRect.top < viewportBottom && cardRect.bottom > flowRect.top && buttonRect.top > viewportBottom - 4;
+				return cardRect.top < viewportBottom
+					&& cardRect.bottom > flowRect.top
+					&& buttonRect.bottom > floatingBoundary;
 			})
 			.sort((left, right) => {
 				const center = (flowRect.top + flowRect.bottom) / 2;
@@ -5680,11 +5744,11 @@ export class KnomoView extends ItemView {
 		const right = this.currentLayout === "mobile"
 			? 10
 			: Math.max(8, this.containerEl.win.innerWidth - Math.min(cardRect.right, flowRect.right) + 8);
-		const fab = this.currentLayout === "mobile"
-			? this.containerEl.doc.querySelector<HTMLElement>(".knomo-mobile-create-fab")
-			: null;
 		const anchorTop = fab?.getBoundingClientRect().top ?? viewportBottom;
-		const bottom = Math.max(12, this.containerEl.win.innerHeight - anchorTop + (fab === null ? 8 : 20));
+		const bottom = Math.max(
+			12,
+			this.containerEl.win.innerHeight - anchorTop + (fab === null ? 8 : MOBILE_COLLAPSE_BUTTON_FAB_GAP),
+		);
 		candidate.button.addClass("is-viewport-floating");
 		candidate.button.style.setProperty("--knomo-floating-collapse-bottom", `${Math.round(bottom)}px`);
 		candidate.button.style.setProperty("--knomo-floating-collapse-right", `${Math.round(right)}px`);

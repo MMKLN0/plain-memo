@@ -119,7 +119,7 @@ function createHarness(total: number, overrides: { isPaused?: () => boolean; fai
 	let ensureCalls = 0;
 	let sidebarCalls = 0;
 	const hydrator = new MobileMemoHydrator({
-		isMobile: () => true,
+		shouldHydrateIncrementally: () => true,
 		isLoading: () => false,
 		isPaused: overrides.isPaused,
 		canHydrateCardFlow: () => true,

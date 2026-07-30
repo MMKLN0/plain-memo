@@ -131,11 +131,12 @@ test("memo card action menu includes open daily in the requested order", async (
 		"open-daily",
 		"copy-text",
 		"copy-link",
+		"pin",
 		"delete",
 	]);
 	assert.equal(root.find("[data-memo-action='open-daily']")?.getText(), "Open note");
 	assert.equal(root.find(".knomo-card-word-count")?.getText(), "Words: 1");
-	assert.equal(root.find(".knomo-card-actions")?.getText().endsWith("DeleteWords: 1"), true);
+	assert.equal(root.find(".knomo-card-actions")?.getText().endsWith("PinDeleteWords: 1"), true);
 	const card = root.find("article");
 	assert.equal(card?.getAttr("data-memo-card-open"), null);
 	assert.equal(card?.getAttr("tabindex"), null);

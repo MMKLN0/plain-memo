@@ -7,6 +7,7 @@ import { FlomoImportService } from "../services/FlomoImportService";
 import { MemoFilenameImportService } from "../services/MemoFilenameImportService";
 import type { ObsidianExcludeService } from "../services/ObsidianExcludeService";
 import type { SettingsService } from "../services/SettingsService";
+import type { PinnedMemoService } from "../services/PinnedMemoService";
 import { normalizeVaultPath } from "../utils/path";
 import { showKnomoConfirmModal } from "./KnomoConfirmModal";
 import { FlomoImportModal } from "./FlomoImportModal";
@@ -18,6 +19,7 @@ export class KnomoSettingTab extends PluginSettingTab {
 		plugin: Plugin,
 		private readonly settings: SettingsService,
 		private readonly store: FileMemoOrchestrator,
+		private readonly pinnedMemos: PinnedMemoService,
 		_exclude: ObsidianExcludeService,
 		private readonly onSettingsChanged: () => Promise<void> = async () => undefined,
 	) {
@@ -89,6 +91,19 @@ export class KnomoSettingTab extends PluginSettingTab {
 						text.inputEl.blur();
 					}
 				});
+			});
+
+		new Setting(containerEl)
+			.setName(t("settings.file.pinnedMemoLimit"))
+			.setDesc(t("settings.file.pinnedMemoLimitDescription"))
+			.addText((text) => {
+				text.inputEl.type = "number";
+				text.inputEl.min = "1";
+				text.inputEl.max = "20";
+				text.inputEl.step = "1";
+				text.setValue(String(current.pinnedMemoLimit ?? 3));
+				text.inputEl.addEventListener("blur", () => { void this.commitPinnedMemoLimit(text.inputEl); });
+				text.inputEl.addEventListener("keydown", (event) => { if (event.key === "Enter") text.inputEl.blur(); });
 			});
 
 		new Setting(containerEl)
@@ -189,6 +204,20 @@ export class KnomoSettingTab extends PluginSettingTab {
 		const threshold = Number.isFinite(parsed) ? Math.max(6, Math.floor(parsed)) : 8;
 		input.value = String(threshold);
 		await this.settings.updateSettings({ memoCollapseLineThreshold: threshold });
+		await this.afterSettingsChanged();
+	}
+
+	private async commitPinnedMemoLimit(input: HTMLInputElement): Promise<void> {
+		const parsed = Number(input.value);
+		const limit = Math.min(20, Math.max(1, Number.isFinite(parsed) ? Math.floor(parsed) : 3));
+		const pinnedCount = this.pinnedMemos.getSnapshot().paths.length;
+		if (limit < pinnedCount) {
+			input.value = String(this.settings.getSettings().pinnedMemoLimit ?? 3);
+			new Notice(t("settings.file.pinnedMemoLimitTooLow", { count: pinnedCount }));
+			return;
+		}
+		input.value = String(limit);
+		await this.settings.updateSettings({ pinnedMemoLimit: limit });
 		await this.afterSettingsChanged();
 	}
 

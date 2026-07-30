@@ -24,7 +24,7 @@ export interface MobileMemoHydratorSnapshot {
 }
 
 interface MobileMemoHydratorOptions {
-	isMobile: () => boolean;
+	shouldHydrateIncrementally: () => boolean;
 	isLoading: () => boolean;
 	isPaused?: () => boolean;
 	canHydrateCardFlow: () => boolean;
@@ -97,7 +97,7 @@ export class MobileMemoHydrator {
 	}
 
 	schedule(): void {
-		if (!this.options.isMobile() || this.allMemosLoaded || this.options.isLoading() || this.hydrateTimerId !== null) {
+		if (!this.options.shouldHydrateIncrementally() || this.allMemosLoaded || this.options.isLoading() || this.hydrateTimerId !== null) {
 			return;
 		}
 		this.hydrateTimerId = this.options.scheduleTask(() => {
@@ -107,7 +107,7 @@ export class MobileMemoHydrator {
 	}
 
 	start(fastMode: boolean): Promise<boolean> {
-		if (!this.options.isMobile() || this.allMemosLoaded) return Promise.resolve(this.allMemosLoaded);
+		if (!this.options.shouldHydrateIncrementally() || this.allMemosLoaded) return Promise.resolve(this.allMemosLoaded);
 		if (fastMode) this.fastMode = true;
 		this.clearScheduled();
 		this.loadMode = "hydrating";
@@ -118,14 +118,14 @@ export class MobileMemoHydrator {
 	}
 
 	accelerate(): void {
-		if (this.options.isMobile() && !this.allMemosLoaded) {
+		if (this.options.shouldHydrateIncrementally() && !this.allMemosLoaded) {
 			this.fastMode = true;
 			this.clearScheduled();
 		}
 	}
 
 	requestSidebarHydration(): void {
-		if (!this.options.isMobile() || this.allMemosLoaded) return;
+		if (!this.options.shouldHydrateIncrementally() || this.allMemosLoaded) return;
 		this.fastMode = true;
 		this.loadMode = "hydrating";
 		this.options.ensureAllMemosLoaded();
@@ -133,7 +133,7 @@ export class MobileMemoHydrator {
 	}
 
 	deferSidebarHydration(): void {
-		if (!this.options.isMobile() || this.allMemosLoaded || this.sidebarHydrateTimerId !== null) return;
+		if (!this.options.shouldHydrateIncrementally() || this.allMemosLoaded || this.sidebarHydrateTimerId !== null) return;
 		this.sidebarHydrateTimerId = this.options.scheduleTask(() => {
 			this.sidebarHydrateTimerId = null;
 			this.requestSidebarHydration();
@@ -141,7 +141,7 @@ export class MobileMemoHydrator {
 	}
 
 	requestCardFlowHydration(): void {
-		if (!this.options.isMobile() || this.allMemosLoaded || !this.options.canHydrateCardFlow()) return;
+		if (!this.options.shouldHydrateIncrementally() || this.allMemosLoaded || !this.options.canHydrateCardFlow()) return;
 		this.fastMode = true;
 		this.loadMode = "hydrating";
 		this.renderNextBatchAfterHydration = true;

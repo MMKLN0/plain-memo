@@ -2521,6 +2521,47 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-resiz
 	cursor: pointer;
 }
 
+.knomo-plugin .knomo-card-pin {
+	display: inline-flex;
+	align-items: center;
+	width: 14px;
+	height: 14px;
+	margin-left: 6px;
+	color: var(--text-accent);
+}
+
+.knomo-plugin .knomo-pinned-memos {
+	margin: 0 0 12px;
+}
+
+.knomo-plugin .knomo-pinned-memos-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	min-height: 28px;
+	padding: 0 2px;
+	border: 0;
+	border-radius: 4px;
+	color: var(--text-muted);
+	background: transparent;
+	box-shadow: none;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.knomo-plugin .knomo-pinned-memos-toggle:hover,
+.knomo-plugin .knomo-pinned-memos-toggle:focus-visible {
+	background: var(--background-modifier-hover);
+}
+
+.knomo-plugin .knomo-pinned-memos-cards {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-3);
+	margin-top: 4px;
+}
+
 .knomo-plugin:not(.is-layout-mobile) .knomo-card-time[data-memo-time-open="daily"]:hover,
 .knomo-plugin .knomo-card-time[data-memo-time-open="daily"]:focus,
 .knomo-plugin .knomo-card-time[data-memo-time-open="daily"]:focus-visible,

@@ -44,6 +44,7 @@ export interface RenderMemoCardOptions {
 	reusedImagesEl?: HTMLElement | null;
 	collapseLineThreshold?: number;
 	expanded?: boolean;
+	pinned?: boolean;
 }
 
 export interface RenderTrashMemoCardOptions {
@@ -92,7 +93,7 @@ export function renderKnomoMemoCard(container: HTMLElement, memo: MemoRecord, op
 		setIcon(menu, "more-horizontal");
 
 		const actions = head.createDiv({ cls: "knomo-card-actions", attr: { role: "menu" } });
-		for (const action of getMemoCardActions()) {
+		for (const action of getMemoCardActions(options.pinned === true)) {
 			renderCardAction(actions, memo.id, action.action, getMemoActionLabel(action.action), action.className);
 		}
 		actions.createDiv({
@@ -164,6 +165,10 @@ function renderMemoCardTime(container: HTMLElement, memo: MemoRecord, options: R
 		text: options.formatDisplayTime(memo.createdAt),
 		attr: attrs,
 	});
+	if (options.pinned === true) {
+		const pin = container.createSpan({ cls: "knomo-card-pin", attr: { "aria-label": t("card.pinned") } });
+		setIcon(pin, "pin");
+	}
 }
 
 function renderMemoCardTimeBuoy(card: HTMLElement, timeBuoy: MemoCardTimeBuoy | undefined): void {
@@ -328,6 +333,8 @@ function getMemoActionLabel(action: MemoAction): string {
 	if (action === "open-daily") return t("card.openDaily");
 	if (action === "copy-text") return t("card.copyText");
 	if (action === "copy-link") return t("card.copyLink");
+	if (action === "pin") return t("card.pin");
+	if (action === "unpin") return t("card.unpin");
 	return t("card.delete");
 }
 

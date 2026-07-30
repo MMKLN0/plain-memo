@@ -43,13 +43,17 @@ test("builds memo card shell metadata without daily-open card attributes", () =>
 test("builds card action and trash action metadata", () => {
 	assert.equal(getMemoActionClass("edit"), "knomo-card-action");
 	assert.equal(getMemoActionClass("delete"), "knomo-card-action is-danger");
-	assert.deepEqual(getMemoCardActions(), [
+	assert.deepEqual(getMemoCardActions(false), [
 		{ action: "edit", className: "knomo-card-action" },
 		{ action: "reference", className: "knomo-card-action" },
 		{ action: "open-daily", className: "knomo-card-action" },
 		{ action: "copy-text", className: "knomo-card-action" },
 		{ action: "copy-link", className: "knomo-card-action" },
+		{ action: "pin", className: "knomo-card-action" },
 		{ action: "delete", className: "knomo-card-action is-danger" },
+	]);
+	assert.deepEqual(getMemoCardActions(true).map((item) => item.action), [
+		"edit", "reference", "open-daily", "copy-text", "copy-link", "unpin", "delete",
 	]);
 	assert.equal(getTrashActionClass("restore"), "knomo-inline-button");
 	assert.equal(getTrashActionClass("purge"), "knomo-inline-button is-danger");
