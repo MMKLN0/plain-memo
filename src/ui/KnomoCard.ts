@@ -151,6 +151,7 @@ function renderMemoCollapseControl(card: HTMLElement, memo: MemoRecord, threshol
 }
 
 function renderMemoCardTime(container: HTMLElement, memo: MemoRecord, options: RenderMemoCardOptions): void {
+	const group = container.createDiv({ cls: "knomo-card-time-group" });
 	const attrs: Record<string, string> = {
 		type: "button",
 		"aria-label": t("card.openDaily"),
@@ -160,13 +161,13 @@ function renderMemoCardTime(container: HTMLElement, memo: MemoRecord, options: R
 	if (options.randomCard) {
 		attrs["data-random-reunion-card"] = "true";
 	}
-	container.createEl("button", {
+	group.createEl("button", {
 		cls: "knomo-card-time",
 		text: options.formatDisplayTime(memo.createdAt),
 		attr: attrs,
 	});
 	if (options.pinned === true) {
-		const pin = container.createSpan({ cls: "knomo-card-pin", attr: { "aria-label": t("card.pinned") } });
+		const pin = group.createSpan({ cls: "knomo-card-pin", attr: { "aria-label": t("card.pinned") } });
 		setIcon(pin, "pin");
 	}
 }
