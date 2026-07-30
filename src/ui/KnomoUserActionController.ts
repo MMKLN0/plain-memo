@@ -79,8 +79,6 @@ interface KnomoUserActionControllerOptions {
 	setTimeBuoyTab?: (tab: TimeBuoyTab) => void;
 	loadMoreTimeBuoyCards?: () => void;
 	openTimeBuoy?: () => void;
-	enableTimeBuoyIntro?: () => Promise<void>;
-	dismissTimeBuoyIntro?: () => Promise<void>;
 	renderAllMemosLoadingState: () => void;
 	ensureAllMemosLoaded: () => Promise<void>;
 	setRecordStatsView: (view: "week" | "month" | "year") => void;
@@ -345,12 +343,6 @@ export class KnomoUserActionController {
 				return;
 			case "open-time-buoy":
 				this.options.openTimeBuoy?.();
-				return;
-			case "enable-time-buoy-intro":
-				await this.options.enableTimeBuoyIntro?.();
-				return;
-			case "dismiss-time-buoy-intro":
-				await this.options.dismissTimeBuoyIntro?.();
 				return;
 			case "retry-all-memos":
 				if (!this.options.shouldDeferCardFlowForAllMemos()) {

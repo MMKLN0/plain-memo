@@ -890,8 +890,6 @@ export class KnomoView extends ItemView {
 			setTimeBuoyTab: (tab) => this.setTimeBuoyTabFromAction(tab),
 			loadMoreTimeBuoyCards: () => this.renderNextTimeBuoyBatch(this.renderGeneration),
 			openTimeBuoy: () => this.setSidebarNav("time-buoy"),
-			enableTimeBuoyIntro: () => this.enableTimeBuoyFromIntro(),
-			dismissTimeBuoyIntro: () => this.dismissTimeBuoyIntro(),
 			renderAllMemosLoadingState: () => this.renderAllMemosLoadingState(),
 			ensureAllMemosLoaded: async () => {
 				await this.ensureAllMemosLoaded();
@@ -2442,9 +2440,6 @@ export class KnomoView extends ItemView {
 				? { ...presentation, headers: [warning, ...presentation.headers] }
 				: { type: "items", memos: [], mode: "memo", headers: [warning] };
 		}
-		if (presentation.type === "empty" && this.shouldShowTimeBuoyIntro() && this.cardFlowError === null) {
-			return { type: "items", memos: [], mode: "memo", headers: [] };
-		}
 		return presentation;
 	}
 
@@ -2547,10 +2542,6 @@ export class KnomoView extends ItemView {
 			for (const header of headers) {
 				cardFlow.insertBefore(header, firstCard);
 			}
-		}
-		const intro = this.renderTimeBuoyIntro(cardFlow);
-		if (intro !== null) {
-			cardFlow.prepend(intro);
 		}
 		this.renderPinnedMemoSection(cardFlow, this.renderGeneration);
 		this.cardFlowCoordinator.syncBatch(presentation.memos, presentation.mode, visibleMemos.length);
@@ -2657,55 +2648,9 @@ export class KnomoView extends ItemView {
 		if (this.cardFlowEl === null) {
 			return;
 		}
-		this.renderTimeBuoyIntro(this.cardFlowEl);
 		this.renderPinnedMemoSection(this.cardFlowEl, generation);
 		renderKnomoCardFlowHeaders(this.cardFlowEl, presentation.headers);
 		this.startCardFeed(presentation.memos, presentation.mode, generation, initialBatchSize);
-	}
-
-	private shouldShowTimeBuoyIntro(): boolean {
-		const settings = this.settingsService.getSettings();
-		return !settings.timeBuoyEnabled && settings.timeBuoyIntroDismissed !== true && this.isDefaultListState();
-	}
-
-	private renderTimeBuoyIntro(container: HTMLElement): HTMLElement | null {
-		if (!this.shouldShowTimeBuoyIntro()) {
-			return null;
-		}
-		const intro = container.createEl("aside", { cls: "knomo-time-buoy-intro" });
-		intro.createDiv({ text: t("timeBuoy.intro") });
-		const actions = intro.createDiv({ cls: "knomo-time-buoy-intro-actions" });
-		actions.createEl("button", {
-			cls: "mod-cta knomo-inline-button",
-			text: t("timeBuoy.intro.enable"),
-			attr: { type: "button", "data-action": "enable-time-buoy-intro" },
-		});
-		actions.createEl("button", {
-			cls: "knomo-inline-button",
-			text: t("timeBuoy.intro.dismiss"),
-			attr: { type: "button", "data-action": "dismiss-time-buoy-intro" },
-		});
-		return intro;
-	}
-
-	private async enableTimeBuoyFromIntro(): Promise<void> {
-		await this.settingsService.updateSettings({ timeBuoyEnabled: true, timeBuoyIntroDismissed: true });
-		await this.render();
-		new Notice(t("settings.timeBuoy.building"));
-		try {
-			await this.syncOrchestrator.rebuildTimeBuoyIndex({
-				yieldToUi: () => new Promise<void>((resolve) => this.containerEl.win.setTimeout(resolve, 0)),
-			});
-		} catch (error) {
-			new Notice(formatServiceError(error, t("settings.timeBuoy.buildFailed")));
-		} finally {
-			await this.timeBuoyViewController.loadTodayOnly();
-		}
-	}
-
-	private async dismissTimeBuoyIntro(): Promise<void> {
-		await this.settingsService.updateSettings({ timeBuoyIntroDismissed: true });
-		this.forceRebuildCardFlow();
 	}
 
 	private startCardFeed(

@@ -286,12 +286,6 @@ test("handleAction dispatches every simple action to the expected view callbacks
 		"open-time-buoy": {
 			expected: ["time-buoy-open"],
 		},
-		"enable-time-buoy-intro": {
-			expected: ["time-buoy-intro-enable"],
-		},
-		"dismiss-time-buoy-intro": {
-			expected: ["time-buoy-intro-dismiss"],
-		},
 		"retry-all-memos": {
 			overrides: { deferAllMemos: true },
 			expected: ["all-memos-loading", "ensure-all-memos"],
@@ -517,12 +511,6 @@ function createHarness(overrides: Partial<HarnessState> = {}): {
 			setTimeBuoyTab: (tab) => calls.push(`time-buoy-tab:${tab}`),
 			loadMoreTimeBuoyCards: () => calls.push("time-buoy-more-cards"),
 			openTimeBuoy: () => calls.push("time-buoy-open"),
-			enableTimeBuoyIntro: async () => {
-				calls.push("time-buoy-intro-enable");
-			},
-			dismissTimeBuoyIntro: async () => {
-				calls.push("time-buoy-intro-dismiss");
-			},
 			renderAllMemosLoadingState: () => calls.push("all-memos-loading"),
 			ensureAllMemosLoaded: async () => {
 				calls.push("ensure-all-memos");

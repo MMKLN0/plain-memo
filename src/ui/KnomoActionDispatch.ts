@@ -29,8 +29,6 @@ export type KnomoSimpleAction =
 	| "time-buoy-tab-past"
 	| "load-more-time-buoy-cards"
 	| "open-time-buoy"
-	| "enable-time-buoy-intro"
-	| "dismiss-time-buoy-intro"
 	| "record-stats-view-week"
 	| "record-stats-view-month"
 	| "record-stats-view-year"
@@ -97,8 +95,6 @@ export function getKnomoActionDispatch(action: string | null): KnomoActionDispat
 		action === "time-buoy-tab-past" ||
 		action === "load-more-time-buoy-cards" ||
 		action === "open-time-buoy" ||
-		action === "enable-time-buoy-intro" ||
-		action === "dismiss-time-buoy-intro" ||
 		action === "record-stats-view-week" ||
 		action === "record-stats-view-month" ||
 		action === "record-stats-view-year" ||

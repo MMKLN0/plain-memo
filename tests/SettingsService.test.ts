@@ -4,54 +4,6 @@ import assert from "node:assert/strict";
 import type { KnomoSettings } from "../src/types/settings";
 import { ensureObsidianStub } from "./helpers/obsidianStub";
 
-test("enables time buoy by default only when no persisted setting or memo index exists", async () => {
-	const { SettingsService } = await loadSettingsService();
-	const vault = await createMemoryVault({});
-	const legacySettings = { ...createSettings() } as Partial<KnomoSettings>;
-	delete legacySettings.timeBuoyEnabled;
-	const plugin = createPlugin(vault, createSettings(), { initialData: { settings: legacySettings } });
-	const service = new SettingsService(plugin as never);
-	await service.loadSettings();
-
-	await service.initializeTimeBuoyDefault(false);
-
-	assert.equal(service.getSettings().timeBuoyEnabled, true);
-	assert.equal(service.getSettings().timeBuoyIntroDismissed, true);
-	assert.equal(service.consumeInitialTimeBuoyBuildPending(), true);
-	assert.equal(plugin.savedSettings?.timeBuoyEnabled, true);
-});
-
-test("keeps time buoy disabled for upgrades with an existing memo index", async () => {
-	const { SettingsService } = await loadSettingsService();
-	const vault = await createMemoryVault({});
-	const legacySettings = { ...createSettings() } as Partial<KnomoSettings>;
-	delete legacySettings.timeBuoyEnabled;
-	const plugin = createPlugin(vault, createSettings(), { initialData: { settings: legacySettings } });
-	const service = new SettingsService(plugin as never);
-	await service.loadSettings();
-
-	await service.initializeTimeBuoyDefault(true);
-
-	assert.equal(service.getSettings().timeBuoyEnabled, false);
-	assert.equal(service.getSettings().timeBuoyIntroDismissed, false);
-	assert.equal(service.consumeInitialTimeBuoyBuildPending(), false);
-	assert.equal(plugin.savedSettings?.timeBuoyEnabled, false);
-});
-
-test("does not override an explicitly persisted time buoy setting", async () => {
-	const { SettingsService } = await loadSettingsService();
-	const vault = await createMemoryVault({});
-	const plugin = createPlugin(vault, { ...createSettings(), timeBuoyEnabled: true });
-	const service = new SettingsService(plugin as never);
-	await service.loadSettings();
-
-	await service.initializeTimeBuoyDefault(true);
-
-	assert.equal(service.getSettings().timeBuoyEnabled, true);
-	assert.equal(service.getSettings().timeBuoyIntroDismissed, true);
-	assert.equal(plugin.savedSettings, null);
-});
-
 test("migrates monthly files, system folder, monthlyRef paths, exclude rule, and backups", async () => {
 	const { SettingsService } = await loadSettingsService();
 	const vault = await createMemoryVault({
