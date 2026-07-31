@@ -2537,7 +2537,11 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-resiz
 }
 
 .knomo-plugin .knomo-pinned-memos {
-	margin: 0 0 12px;
+	margin: 0;
+}
+
+.knomo-plugin .knomo-pinned-memos.is-collapsed {
+	margin-bottom: 8px;
 }
 
 .knomo-plugin .knomo-pinned-memos-toggle {
@@ -2565,11 +2569,11 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-resiz
 	display: flex;
 	flex-direction: column;
 	gap: 0;
-	margin-top: 4px;
+	margin-top: 8px;
 }
 
 .knomo-plugin .knomo-pinned-memos-cards .knomo-card:last-child {
-	margin-bottom: 0;
+	margin-bottom: 8px;
 }
 
 .knomo-plugin:not(.is-layout-mobile) .knomo-card-time[data-memo-time-open="daily"]:hover,
@@ -2826,6 +2830,35 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-resiz
 	margin: 0;
 	background: var(--background-modifier-hover);
 	box-shadow: var(--shadow-s);
+}
+
+.knomo-plugin .knomo-card-collapse-toggle.is-floating-collapse-source {
+	visibility: hidden;
+}
+
+.knomo-plugin .knomo-floating-collapse-proxy.is-viewport-floating {
+	position: fixed;
+	right: var(--knomo-floating-collapse-right, 10px);
+	bottom: var(--knomo-floating-collapse-bottom, 12px);
+	z-index: 90;
+	display: block;
+	width: auto;
+	min-width: 0;
+	height: auto;
+	min-height: 0;
+	margin: 0;
+	padding: 0 3px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smallest);
+	line-height: 1.2;
+	background: var(--background-modifier-hover);
+	border: 0;
+	border-radius: 3px;
+	box-shadow: var(--shadow-s);
+}
+
+.knomo-plugin .knomo-card.has-floating-collapse-control {
+	padding-bottom: var(--knomo-floating-collapse-card-padding-bottom);
 }
 
 .knomo-plugin .knomo-card-content {

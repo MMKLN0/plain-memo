@@ -2806,7 +2806,10 @@ export class KnomoView extends ItemView {
 		const expanded = !this.expandedMemoIds.has(memoId);
 		if (expanded) this.expandedMemoIds.add(memoId);
 		else this.expandedMemoIds.delete(memoId);
-		const card = sourceEl.closest<HTMLElement>(".knomo-card");
+		const card = sourceEl.closest<HTMLElement>(".knomo-card")
+			?? Array.from(this.cardFlowEl?.querySelectorAll<HTMLElement>(".knomo-card") ?? [])
+				.find((item) => item.getAttr("data-memo-id") === memoId)
+			?? null;
 		const body = card?.querySelector<HTMLElement>(".knomo-card-body") ?? null;
 		if (body !== null) {
 			body.toggleClass("is-collapsed", !expanded);
@@ -2814,8 +2817,11 @@ export class KnomoView extends ItemView {
 		}
 		card?.toggleClass("has-collapsed-memo", !expanded);
 		card?.toggleClass("has-expanded-memo", expanded);
-		sourceEl.setText(expanded ? t("card.collapse") : t("card.expand"));
-		sourceEl.setAttr("aria-expanded", expanded ? "true" : "false");
+		const controls = [sourceEl, card?.querySelector<HTMLElement>(".knomo-card-collapse-toggle") ?? null];
+		for (const control of new Set(controls.filter((item): item is HTMLElement => item !== null))) {
+			control.setText(expanded ? t("card.collapse") : t("card.expand"));
+			control.setAttr("aria-expanded", expanded ? "true" : "false");
+		}
 		this.containerEl.win.requestAnimationFrame(() => this.syncFloatingCollapseControls());
 	}
 
@@ -3881,7 +3887,9 @@ export class KnomoView extends ItemView {
 		const snapshot = this.pinnedMemos.getSnapshot();
 		const memos = this.getPinnedMemos();
 		if (memos.length === 0) return;
-		const section = container.createEl("section", { cls: "knomo-pinned-memos" });
+		const section = container.createEl("section", {
+			cls: snapshot.collapsed ? "knomo-pinned-memos is-collapsed" : "knomo-pinned-memos",
+		});
 		container.prepend(section);
 		const header = section.createEl("button", {
 			cls: "knomo-pinned-memos-toggle",
@@ -5627,11 +5635,18 @@ export class KnomoView extends ItemView {
 		if (flow === null) {
 			return;
 		}
-		const buttons = Array.from(flow.querySelectorAll<HTMLElement>(".knomo-card-collapse-toggle"));
+		flow.querySelector<HTMLElement>(".knomo-floating-collapse-proxy")?.remove();
+		const buttons = Array.from(flow.querySelectorAll<HTMLElement>(
+			".knomo-card-collapse-toggle:not(.knomo-floating-collapse-proxy)",
+		));
 		for (const button of buttons) {
+			const card = button.closest<HTMLElement>(".knomo-card");
+			button.removeClass("is-floating-collapse-source");
 			button.removeClass("is-viewport-floating");
 			button.style.removeProperty("--knomo-floating-collapse-bottom");
 			button.style.removeProperty("--knomo-floating-collapse-right");
+			card?.removeClass("has-floating-collapse-control");
+			card?.style.removeProperty("--knomo-floating-collapse-card-padding-bottom");
 		}
 		const flowRect = flow.getBoundingClientRect();
 		const viewportBottom = Math.min(flowRect.bottom, this.containerEl.win.innerHeight);
@@ -5654,6 +5669,7 @@ export class KnomoView extends ItemView {
 				const buttonRect = item.button.getBoundingClientRect();
 				return cardRect.top < viewportBottom
 					&& cardRect.bottom > flowRect.top
+					&& (this.currentLayout !== "mobile" || cardRect.top < floatingBoundary)
 					&& buttonRect.bottom > floatingBoundary;
 			})
 			.sort((left, right) => {
@@ -5666,14 +5682,35 @@ export class KnomoView extends ItemView {
 			return;
 		}
 		const cardRect = candidate.card.getBoundingClientRect();
+		const buttonRect = candidate.button.getBoundingClientRect();
 		const right = this.currentLayout === "mobile"
-			? 10
+			? Math.max(0, this.containerEl.win.innerWidth - buttonRect.right)
 			: Math.max(8, this.containerEl.win.innerWidth - Math.min(cardRect.right, flowRect.right) + 8);
 		const anchorTop = fab?.getBoundingClientRect().top ?? viewportBottom;
 		const bottom = Math.max(
 			12,
 			this.containerEl.win.innerHeight - anchorTop + (fab === null ? 8 : MOBILE_COLLAPSE_BUTTON_FAB_GAP),
 		);
+		if (this.currentLayout === "mobile") {
+			candidate.button.addClass("is-floating-collapse-source");
+			const proxy = candidate.button.cloneNode(true) as HTMLElement;
+			proxy.removeClass("is-floating-collapse-source");
+			proxy.addClass("knomo-floating-collapse-proxy", "is-viewport-floating");
+			proxy.setCssProps({
+				"--knomo-floating-collapse-bottom": `${Math.round(bottom)}px`,
+				"--knomo-floating-collapse-right": `${Math.round(right)}px`,
+			});
+			flow.appendChild(proxy);
+			return;
+		}
+		const buttonStyle = this.containerEl.win.getComputedStyle(candidate.button);
+		const cardStyle = this.containerEl.win.getComputedStyle(candidate.card);
+		const reservedHeight = parseFloat(cardStyle.paddingBottom)
+			+ buttonRect.height
+			+ parseFloat(buttonStyle.marginTop)
+			+ parseFloat(buttonStyle.marginBottom);
+		candidate.card.addClass("has-floating-collapse-control");
+		candidate.card.style.setProperty("--knomo-floating-collapse-card-padding-bottom", `${Math.ceil(reservedHeight)}px`);
 		candidate.button.addClass("is-viewport-floating");
 		candidate.button.setCssProps({
 			"--knomo-floating-collapse-bottom": `${Math.round(bottom)}px`,
