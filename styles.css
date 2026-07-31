@@ -3573,7 +3573,7 @@ body .knomo-mobile-create-fab.is-hidden {
 	transform: translateY(0);
 }
 
-.knomo-mobile-composer-layer.is-closing .knomo-mobile-composer-backdrop {
+.knomo-mobile-composer-layer.is-closing:not(.is-keyboard-tracking) .knomo-mobile-composer-backdrop {
 	opacity: 0;
 }
 

@@ -119,7 +119,6 @@ import {
 	MOBILE_SEARCH_TOP_DEFAULT,
 } from "./mobileHeaderMetrics";
 import { MobileImagePickerFocusGuard } from "./MobileImagePickerFocusGuard";
-import { MobileSendPointerGuard } from "./MobileSendPointerGuard";
 import { MobileComposerController } from "./MobileComposerController";
 import { MobileMemoHydrator } from "./MobileMemoHydrator";
 import type { MobileMemoHydrationRenderState } from "./MobileMemoHydrator";
@@ -330,7 +329,6 @@ export class KnomoView extends ItemView {
 	private readonly mobileHandledToolPointer: MobileHandledToolPointer;
 	private readonly mobileHeaderTitleController: MobileHeaderTitleController;
 	private readonly mobileImagePickerFocusGuard: MobileImagePickerFocusGuard;
-	private readonly mobileSendPointerGuard = new MobileSendPointerGuard({ getNow: () => Date.now() });
 	private readonly nativeImagePickerController: NativeImagePickerController;
 	private readonly cardImageLoadQueue: CardImageLoadQueue;
 	private readonly imageLoadPauseReasons = new Map<PausableImageLoadSurface, Set<ImageLoadPauseReason>>();
@@ -811,7 +809,6 @@ export class KnomoView extends ItemView {
 			getRenderGeneration: () => this.renderGeneration,
 			hasMoreCardFlowItems: () => this.cardFlowCoordinator.hasMoreItems,
 			shouldDeferCardFlowForAllMemos: () => this.shouldDeferCardFlowForAllMemos(),
-			shouldIgnoreMobileSaveInput: () => this.mobileSendPointerGuard.shouldIgnoreClick(this.currentLayout === "mobile"),
 			getEscapeState: () => ({
 				mobileSearchPageOpen: this.mobileSearchPageOpen,
 				composerOpen: this.composerOpen,
@@ -1369,12 +1366,6 @@ export class KnomoView extends ItemView {
 			this.handleComposerKeyup(event);
 			this.wikiLinkSuggest?.refreshForCursor();
 			this.closeTimeBuoyPickerIfTriggerMoved();
-		});
-		this.registerDomEvent(this.sendButtonEl, "pointerdown", (event) => {
-			this.handleSendPointerDown(event);
-		});
-		this.registerDomEvent(this.sendButtonEl, "mousedown", (event) => {
-			this.handleSendPointerDown(event);
 		});
 		this.syncRecognizedTagChips();
 		this.updateSendButtonState();
@@ -4145,7 +4136,7 @@ export class KnomoView extends ItemView {
 			return;
 		}
 		const action = actionEl.getAttr("data-action");
-		if (action !== "clear-reference" && action !== "cancel-edit") {
+		if (action !== "clear-reference") {
 			return;
 		}
 		event.preventDefault();
@@ -4153,11 +4144,7 @@ export class KnomoView extends ItemView {
 		if (this.mobileHandledToolPointer.isHandled(actionEl, action)) {
 			return;
 		}
-		if (action === "clear-reference") {
-			this.clearReference();
-		} else {
-			this.cancelEditing();
-		}
+		this.clearReference();
 		this.mobileHandledToolPointer.mark(actionEl, action);
 	}
 
@@ -4768,22 +4755,6 @@ export class KnomoView extends ItemView {
 		}
 		const input = this.inputEl;
 		return input !== null && input.isConnected && !input.disabled;
-	}
-
-	private handleSendPointerDown(event: PointerEvent | MouseEvent): void {
-		if (this.currentLayout !== "mobile") {
-			return;
-		}
-		if (this.isSaving) {
-			return;
-		}
-		if (this.sendButtonEl === null || this.sendButtonEl.disabled) {
-			return;
-		}
-		event.preventDefault();
-		event.stopPropagation();
-		this.mobileSendPointerGuard.markPointer();
-		void this.saveInput();
 	}
 
 	private insertText(text: string, shouldFocus = true): void {

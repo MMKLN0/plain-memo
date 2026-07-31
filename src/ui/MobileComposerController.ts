@@ -437,6 +437,9 @@ export class MobileComposerController {
 		}
 		this.mobileComposerResizeFrameId = this.options.getWindow().requestAnimationFrame(() => {
 			this.mobileComposerResizeFrameId = null;
+			if (this.mobileComposerPhase === "closing") {
+				return;
+			}
 			this.updateMeasurements();
 			this.options.resizeInput();
 			this.scheduleToolbarAnchorRefresh();
@@ -808,9 +811,11 @@ export class MobileComposerController {
 		this.mobileComposerDockSource = composerDock.source;
 		this.mobileKeyboardHeight = keyboardHeight;
 		this.setKeyboardMetrics(keyboardHeight);
-		this.updateMeasurements();
-		this.options.resizeInput();
-		this.updateToolbarAnchorInset();
+		if (this.mobileComposerPhase !== "closing") {
+			this.updateMeasurements();
+			this.options.resizeInput();
+			this.updateToolbarAnchorInset();
+		}
 		this.syncComposerDockOffset(composerDock, baselineHeight);
 		this.mobileComposerLayerEl?.setAttr("data-knomo-composer-dock-source", composerDock.source);
 		this.maybeFinishClosingAfterDockSettles();

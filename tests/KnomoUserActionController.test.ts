@@ -356,10 +356,6 @@ test("handleAction covers guarded and fallback action branches", async () => {
 	await retryAllMemosBlocked.controller.handleAction("retry-all-memos", null);
 	assert.deepEqual(retryAllMemosBlocked.calls, []);
 
-	const ignoredSave = createHarness({ ignoreMobileSave: true });
-	await ignoredSave.controller.handleAction("save-input", null);
-	assert.deepEqual(ignoredSave.calls, []);
-
 	const handledComposerTool = createHarness({ composerToolHandled: true });
 	await handledComposerTool.controller.handleAction("insert-tag", null);
 	assert.deepEqual(handledComposerTool.calls, ["composer-tool:insert-tag"]);
@@ -384,7 +380,6 @@ interface HarnessState {
 	drawerOpen: boolean;
 	cardFlowHasMore: boolean;
 	deferAllMemos: boolean;
-	ignoreMobileSave: boolean;
 	composerToolHandled: boolean;
 	consumeSuppressed: boolean;
 	outsideHandled: boolean;
@@ -409,7 +404,6 @@ function createHarness(overrides: Partial<HarnessState> = {}): {
 		drawerOpen: false,
 		cardFlowHasMore: false,
 		deferAllMemos: false,
-		ignoreMobileSave: false,
 		composerToolHandled: true,
 		consumeSuppressed: false,
 		outsideHandled: false,
@@ -431,7 +425,6 @@ function createHarness(overrides: Partial<HarnessState> = {}): {
 			getRenderGeneration: () => 7,
 			hasMoreCardFlowItems: () => state.cardFlowHasMore,
 			shouldDeferCardFlowForAllMemos: () => state.deferAllMemos,
-			shouldIgnoreMobileSaveInput: () => state.ignoreMobileSave,
 			getEscapeState: () => state.escapeState,
 			consumeSuppressedOpenPopupDismissClick: () => {
 				if (state.consumeSuppressed) {

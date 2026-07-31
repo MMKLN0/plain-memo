@@ -33,7 +33,6 @@ interface KnomoUserActionControllerOptions {
 	getRenderGeneration: () => number;
 	hasMoreCardFlowItems: () => boolean;
 	shouldDeferCardFlowForAllMemos: () => boolean;
-	shouldIgnoreMobileSaveInput: () => boolean;
 	getEscapeState: () => EscapeState;
 	consumeSuppressedOpenPopupDismissClick: (event: Event) => boolean;
 	handleOpenPopupOutsideEvent: (event: Event, target: EventTarget | null, suppressFollowingClick: boolean) => boolean;
@@ -400,9 +399,6 @@ export class KnomoUserActionController {
 				this.options.cancelEditing();
 				return;
 			case "save-input":
-				if (this.options.shouldIgnoreMobileSaveInput()) {
-					return;
-				}
 				await this.options.saveInput();
 				return;
 			case "unknown":
