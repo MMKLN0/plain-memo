@@ -16,6 +16,7 @@ import type { KnomoSettings } from "../types/settings";
 import { formatLocalIsoString, formatMonthPeriod } from "../utils/date";
 import { formatMemoFilenameTimestamp, parseMemoFilenameTimestamp, toSafeMemoFileStem } from "../utils/fileMemoName";
 import { hashMemoContent, hashText } from "../utils/hash";
+import { restoreMemoFrontmatter } from "../utils/memoFrontmatter";
 import { extractTimeBuoyDates, getTimeBuoyRevision } from "../utils/timeBuoyParser";
 
 type GetSettings = () => KnomoSettings;
@@ -118,8 +119,9 @@ export class FileMemoOrchestrator {
 
 	async updateMemo(memo: MemoRecord, input: string): Promise<MemoRecord> {
 		const file = this.requireFile(memo.dailyRef.path);
-		const content = normalizeContent(input);
-		if (!content) throw new Error("Memo content cannot be empty.");
+		const editedBody = normalizeContent(input);
+		if (!editedBody) throw new Error("Memo content cannot be empty.");
+		const content = restoreMemoFrontmatter(memo.contentSnapshot, editedBody);
 		await this.app.vault.modify(file, content);
 		this.cache.delete(file.path);
 		const updated = await this.readFile(file, undefined, {

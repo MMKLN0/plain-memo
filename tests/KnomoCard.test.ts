@@ -75,6 +75,17 @@ test("memo cards at the line threshold remain fully visible", async () => {
 	assert.equal(collapseToggle, null);
 });
 
+test("memo card collapse ignores frontmatter and counts a blank run as 0.33 lines", async () => {
+	const { body, collapseToggle } = await renderMemoCard(
+		"---\ncreated: 2025-08-05T08:55:37\n---\none\n\n\ntwo\nthree\nfour\nfive",
+		undefined,
+		{ collapseLineThreshold: 6 },
+	);
+
+	assert.equal(body?.hasClass("is-collapsed"), false);
+	assert.equal(collapseToggle, null);
+});
+
 test("memo cards over the line threshold are collapsed by default", async () => {
 	const { body, collapseToggle } = await renderMemoCard(
 		["one", "two", "three", "four", "five", "six", "seven"].join("\n"),

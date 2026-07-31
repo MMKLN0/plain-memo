@@ -29,6 +29,7 @@ import {
 } from "../utils/timeBuoyComposer";
 import { stripTrailingWikiLink, withMemoIdAlias } from "../utils/references";
 import { parseMemoTags } from "../utils/markdown";
+import { getMemoVisibleContent } from "../utils/memoFrontmatter";
 import { formatServiceError, formatSettingsText } from "../utils/serviceText";
 import type { MemoAction, TrashAction } from "./KnomoActionDispatch";
 import { CardImageLoadQueue, type CardImageLoadSurface } from "./CardImageLoadQueue";
@@ -2869,7 +2870,8 @@ export class KnomoView extends ItemView {
 	}
 
 	private getMemoDisplayContent(memo: MemoRecord): string {
-		return memo.references.length > 0 ? stripTrailingWikiLink(memo.contentSnapshot) : memo.contentSnapshot;
+		const visibleContent = getMemoVisibleContent(memo.contentSnapshot);
+		return memo.references.length > 0 ? stripTrailingWikiLink(visibleContent) : visibleContent;
 	}
 
 	private retainMemoCardPreviews(): void {
@@ -4023,9 +4025,9 @@ export class KnomoView extends ItemView {
 		this.quoteSourceMemoId = null;
 		this.quoteReferenceText = null;
 		this.quoteMarkdownText = null;
-		this.draftContent = memo.contentSnapshot;
+		this.draftContent = getMemoVisibleContent(memo.contentSnapshot);
 		if (this.inputEl !== null) {
-			this.inputEl.value = memo.contentSnapshot;
+			this.inputEl.value = this.draftContent;
 		}
 		this.syncRecognizedTagChips();
 		this.openComposer();

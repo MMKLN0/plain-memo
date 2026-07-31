@@ -5,6 +5,7 @@ import { t } from "../i18n";
 import type { MemoRecord } from "../types/memo";
 import type { TimeBuoyDateStatus } from "../types/timeBuoy";
 import { getMemoContentStats } from "../utils/memoContentStats";
+import { getMemoCollapseLineWeight } from "../utils/memoFrontmatter";
 import { formatMemoIssue } from "../utils/serviceText";
 import type { MemoAction, TrashAction } from "./KnomoActionDispatch";
 import {
@@ -127,14 +128,14 @@ export function renderKnomoMemoCard(container: HTMLElement, memo: MemoRecord, op
 }
 
 function renderMemoCollapseControl(card: HTMLElement, memo: MemoRecord, threshold: number, expanded: boolean, reused: boolean): void {
-	const lineCount = memo.contentSnapshot.replace(/\r\n?/g, "\n").split("\n").length;
+	const lineWeight = getMemoCollapseLineWeight(memo.contentSnapshot);
 	const body = card.find(".knomo-card-body");
 	if (body === null) return;
 	if (reused) {
 		const removable = body as HTMLElement & { removeClass?: (...classes: string[]) => void };
 		removable.removeClass?.("is-collapsed", "is-expanded");
 	}
-	if (lineCount <= threshold) return;
+	if (lineWeight <= threshold) return;
 	body.addClass(expanded ? "is-expanded" : "is-collapsed");
 	card.addClass(expanded ? "has-expanded-memo" : "has-collapsed-memo");
 	card.style?.setProperty("--knomo-collapse-lines", String(threshold));
