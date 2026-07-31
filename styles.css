@@ -1954,7 +1954,7 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-resiz
 
 .knomo-plugin.is-layout-mobile .knomo-composer-bar {
 	flex: 0 0 auto;
-	align-items: flex-end;
+	align-items: center;
 	margin-top: 4px;
 	padding-top: 0;
 	border-top: 0;
@@ -1972,6 +1972,7 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-resiz
 	flex: 1 1 auto;
 	min-width: 0;
 	gap: 0;
+	justify-content: flex-start;
 	overflow-x: auto;
 	scrollbar-width: none;
 }
@@ -2176,11 +2177,12 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-resiz
 }
 
 .knomo-plugin.is-layout-mobile .knomo-tool-button {
-	width: 44px;
-	min-width: 44px;
-	height: 44px;
-	min-height: 44px;
-	border-radius: 22px;
+	width: 36px;
+	min-width: 36px;
+	height: 36px;
+	min-height: 36px;
+	flex: 0 0 36px;
+	border-radius: 18px;
 	color: var(--text-muted);
 	font-size: 24px;
 	margin-block: 0;
@@ -2218,6 +2220,12 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-resiz
 	flex: 0 0 auto;
 	width: auto;
 	margin-left: 0;
+}
+
+.knomo-plugin.is-layout-mobile .knomo-cancel-edit-button {
+	height: 36px;
+	min-height: 36px;
+	padding: 0 6px;
 }
 
 .knomo-plugin .knomo-cancel-edit-button {
@@ -3419,12 +3427,12 @@ body .knomo-mobile-create-fab.is-hidden {
 .knomo-plugin.is-layout-mobile .knomo-send-button,
 .knomo-mobile-composer-layer .knomo-send-button {
 	position: relative;
-	width: 58px;
-	min-width: 58px;
-	height: 44px;
-	min-height: 44px;
+	width: 46px;
+	min-width: 46px;
+	height: 36px;
+	min-height: 36px;
 	border-radius: 22px;
-	flex: 0 0 58px;
+	flex: 0 0 46px;
 	background: transparent;
 	box-shadow: none;
 }
@@ -3435,9 +3443,9 @@ body .knomo-mobile-create-fab.is-hidden {
 	position: absolute;
 	top: 50%;
 	left: 50%;
-	width: 58px;
-	height: 35px;
-	border-radius: 18px;
+	width: 46px;
+	height: 32px;
+	border-radius: 16px;
 	background: var(--knomo-accent);
 	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 	transform: translate(-50%, -50%);
@@ -3618,7 +3626,9 @@ body .knomo-mobile-create-fab.is-hidden {
 	display: flex;
 	align-items: center;
 	gap: 0;
-	flex: 1 1 auto;
+	justify-content: flex-start !important;
+	flex: 0 0 auto;
+	width: max-content;
 	min-width: 0;
 	overflow-x: auto;
 	scrollbar-width: none;
@@ -3636,11 +3646,14 @@ body .knomo-mobile-create-fab.is-hidden {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 44px;
-	min-width: 44px;
-	height: 44px;
-	min-height: 44px;
-	flex: 0 0 44px;
+	width: 36px !important;
+	min-width: 36px !important;
+	max-width: 36px !important;
+	height: 36px !important;
+	min-height: 36px !important;
+	max-height: 36px !important;
+	flex: 0 0 36px !important;
+	padding: 0 !important;
 	font-size: 28px;
 	margin-block: 0;
 }
@@ -3661,6 +3674,7 @@ body .knomo-mobile-create-fab.is-hidden {
 
 .knomo-mobile-composer-layer .knomo-composer-bar {
 	flex: 0 0 auto;
+	align-items: center;
 }
 
 .knomo-tag-suggest-popover {
