@@ -4,7 +4,7 @@
 
 > 一个将碎片笔记保存为独立 Markdown 文件的 Obsidian Memos 插件。
 
-当前稳定版本：[PlainMemo 2.1.1](https://github.com/MMKLN0/plain-memo/releases/tag/2.1.1)
+当前稳定版本：[PlainMemo 2.2.0](https://github.com/MMKLN0/plain-memo/releases/tag/2.2.0)
 
 PlainMemo 是 [BanyanSo/knomo](https://github.com/BanyanSo/knomo) 的非官方 fork，基于上游 MIT 许可证继续开发。本仓库不是上游项目的官方发布渠道，也不代表上游作者的观点或支持承诺。
 

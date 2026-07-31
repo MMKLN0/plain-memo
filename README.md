@@ -4,7 +4,7 @@ English | [简体中文](./README.zh-CN.md)
 
 > An Obsidian Memos plugin that stores each memo as an independent Markdown file.
 
-Current stable release: [PlainMemo 2.1.1](https://github.com/MMKLN0/plain-memo/releases/tag/2.1.1)
+Current stable release: [PlainMemo 2.2.0](https://github.com/MMKLN0/plain-memo/releases/tag/2.2.0)
 
 PlainMemo is an unofficial fork of [BanyanSo/knomo](https://github.com/BanyanSo/knomo), continued under the upstream MIT license. It is not an official release channel for the upstream project and does not imply upstream endorsement or support.
 
