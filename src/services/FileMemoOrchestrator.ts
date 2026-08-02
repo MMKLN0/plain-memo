@@ -85,6 +85,10 @@ export class FileMemoOrchestrator {
 		return this.getScanFolders().some((folder) => path === folder || path.startsWith(`${folder}/`));
 	}
 
+	getActiveMemoFiles(): TFile[] {
+		return this.app.vault.getMarkdownFiles().filter((file) => this.isActiveMemoFile(file));
+	}
+
 	invalidatePath(path: string): void {
 		this.cache.delete(path);
 		this.pendingReads.delete(path);

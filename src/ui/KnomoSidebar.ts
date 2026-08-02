@@ -1,4 +1,4 @@
-import { setIcon } from "obsidian";
+import { Menu, Platform, setIcon } from "obsidian";
 
 import { t } from "../i18n";
 import { buildTagTree } from "../utils/tagTree";
@@ -35,6 +35,7 @@ export interface RenderSidebarTagsOptions {
 	activeTagKey: string | null;
 	expandedTagGroups: ReadonlySet<string>;
 	emptyText: string;
+	onRenameTag?: (tag: TagTreeNode) => void;
 }
 
 export interface SidebarDragState {
@@ -182,10 +183,95 @@ function renderTagTreeNode(container: HTMLElement, tag: TagTreeNode, options: Re
 	} else {
 		row.createSpan({ cls: "knomo-tag-count", text: String(tag.count) });
 	}
+	const menuButton = row.createEl("button", {
+		cls: "knomo-tag-menu-button",
+		attr: { type: "button", "aria-label": t("tags.menu") },
+	});
+	setIcon(menuButton, "ellipsis");
+	if (typeof menuButton.addEventListener === "function") {
+		menuButton.addEventListener("click", (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (Platform.isMobile) {
+				showMobileTagMenu(menuButton, tag, options);
+				return;
+			}
+			const menu = new Menu();
+			menu.addItem((item) => item
+				.setTitle(t("tags.rename"))
+				.setIcon("pencil")
+				.onClick(() => options.onRenameTag?.(tag)));
+			menu.showAtMouseEvent(event);
+		});
+	}
 	if (tag.children.length > 0) {
 		const children = node.createDiv({ cls: "knomo-tag-children" });
 		for (const child of tag.children) {
 			renderTagTreeNode(children, child, options);
 		}
 	}
+}
+
+const activeMobileTagMenus = new WeakMap<Document, () => void>();
+
+function showMobileTagMenu(button: HTMLElement, tag: TagTreeNode, options: RenderSidebarTagsOptions): void {
+	const document = button.ownerDocument;
+	const window = document.defaultView;
+	if (window === null) {
+		return;
+	}
+	activeMobileTagMenus.get(document)?.();
+	const menu = document.createElement("div");
+	menu.addClass("knomo-tag-context-menu");
+	menu.setAttr("role", "menu");
+	const action = menu.createEl("button", {
+		cls: "knomo-tag-context-menu-item",
+		attr: { type: "button", role: "menuitem" },
+	});
+	setIcon(action.createSpan({ cls: "knomo-tag-context-menu-icon" }), "pencil");
+	action.createSpan({ text: t("tags.rename") });
+	document.body.appendChild(menu);
+	positionMobileTagMenu(menu, button, window);
+	const close = () => {
+		menu.remove();
+		document.removeEventListener("pointerdown", handlePointerDown, true);
+		document.removeEventListener("scroll", close, true);
+		document.removeEventListener("keydown", handleKeyDown, true);
+		window.removeEventListener("resize", close);
+		if (activeMobileTagMenus.get(document) === close) {
+			activeMobileTagMenus.delete(document);
+		}
+	};
+	const handlePointerDown = (event: PointerEvent) => {
+		const target = event.target;
+		if (target instanceof Node && !menu.contains(target) && !button.contains(target)) {
+			close();
+		}
+	};
+	const handleKeyDown = (event: KeyboardEvent) => {
+		if (event.key === "Escape") {
+			close();
+		}
+	};
+	action.addEventListener("click", () => {
+		close();
+		window.requestAnimationFrame(() => options.onRenameTag?.(tag));
+	});
+	document.addEventListener("pointerdown", handlePointerDown, true);
+	document.addEventListener("scroll", close, true);
+	document.addEventListener("keydown", handleKeyDown, true);
+	window.addEventListener("resize", close);
+	activeMobileTagMenus.set(document, close);
+}
+
+function positionMobileTagMenu(menu: HTMLElement, button: HTMLElement, window: Window): void {
+	const buttonRect = button.getBoundingClientRect();
+	const menuWidth = 132;
+	const viewportWidth = window.innerWidth;
+	const rightPosition = buttonRect.right + 6;
+	const left = rightPosition + menuWidth <= viewportWidth - 8
+		? rightPosition
+		: Math.max(8, buttonRect.left - menuWidth - 6);
+	const top = Math.max(8, Math.min(buttonRect.top - 4, window.innerHeight - 44));
+	menu.setCssProps({ left: `${Math.round(left)}px`, top: `${Math.round(top)}px` });
 }

@@ -793,7 +793,7 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-view-host {
 
 .knomo-plugin .knomo-tag-row {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 38px 16px;
+	grid-template-columns: minmax(0, 1fr) 38px 16px 24px;
 	align-items: center;
 	min-width: 0;
 	padding: 0;
@@ -1975,6 +1975,194 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-resiz
 	justify-content: flex-start;
 	overflow-x: auto;
 	scrollbar-width: none;
+}
+
+.knomo-plugin .knomo-tag-menu-button {
+	grid-column: 4;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 32px;
+	min-height: 32px;
+	padding: 0;
+	border: 0;
+	color: var(--text-faint);
+	background: transparent;
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.knomo-plugin .knomo-tag-menu-button:hover,
+.knomo-plugin .knomo-tag-menu-button:focus-visible {
+	color: var(--text-normal);
+	background: transparent;
+}
+
+.knomo-plugin .knomo-tag-menu-button svg {
+	width: 14px;
+	height: 14px;
+}
+
+.knomo-tag-context-menu {
+	position: fixed;
+	z-index: 220;
+	width: 132px;
+	padding: 4px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 14px;
+	background: var(--background-primary);
+	box-shadow: var(--shadow-s);
+}
+
+.knomo-tag-context-menu-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	min-height: 32px;
+	padding: 0 8px;
+	border: 0;
+	border-radius: 10px;
+	color: var(--text-normal);
+	background: transparent;
+	box-shadow: none;
+	font-size: var(--font-ui-smaller);
+	text-align: left;
+}
+
+.knomo-tag-context-menu-item:active,
+.knomo-tag-context-menu-item:hover,
+.knomo-tag-context-menu-item:focus-visible {
+	background: var(--background-modifier-hover);
+}
+
+.knomo-tag-context-menu-icon {
+	display: inline-flex;
+	flex: 0 0 auto;
+}
+
+.knomo-tag-context-menu-icon svg {
+	width: 14px;
+	height: 14px;
+}
+
+.modal.knomo-tag-rename-modal {
+	flex: 0 0 auto;
+	width: min(420px, calc(100vw - 32px));
+	height: auto;
+	min-height: 0;
+	max-height: calc(100dvh - 24px);
+}
+
+.modal.knomo-tag-rename-modal .modal-content {
+	flex: 0 1 auto;
+	height: auto;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.knomo-tag-rename-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 300;
+	display: flex;
+	align-items: flex-start;
+	justify-content: flex-start;
+	padding: 12px;
+	background: var(--background-modifier-cover);
+}
+
+.knomo-tag-rename-panel {
+	position: absolute;
+	left: 50%;
+	display: flex;
+	flex: 0 0 auto;
+	flex-direction: column;
+	width: min(420px, calc(100vw - 32px));
+	max-height: calc(100dvh - 24px);
+	padding: 22px 18px 18px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 22px;
+	background: var(--background-primary);
+	box-shadow: var(--shadow-l);
+	overflow-y: auto;
+	transform: translateX(-50%);
+}
+
+.knomo-tag-rename-header {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 30px;
+}
+
+.knomo-tag-rename-title {
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+}
+
+.knomo-tag-rename-close {
+	position: absolute;
+	top: -8px;
+	right: -8px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	color: var(--text-normal);
+	background: transparent;
+	box-shadow: none;
+	font-size: 30px;
+	font-weight: 300;
+	line-height: 1;
+}
+
+.knomo-tag-rename-close:hover,
+.knomo-tag-rename-close:focus-visible {
+	background: var(--background-modifier-hover);
+}
+
+.knomo-tag-rename-description {
+	margin-top: 20px;
+	color: var(--text-normal);
+	line-height: var(--line-height-normal);
+}
+
+.knomo-tag-rename-input {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 44px;
+	margin-top: 16px;
+	padding: 0 14px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 22px;
+	background: var(--background-primary-alt);
+}
+
+.knomo-tag-rename-actions {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 10px;
+	margin-top: 18px;
+}
+
+.knomo-tag-rename-actions button {
+	width: 100%;
+	min-height: 44px;
+	border-radius: 22px;
+}
+
+.knomo-tag-rename-error {
+	min-height: 1.4em;
+	margin-top: 8px;
+	color: var(--text-error);
+	font-size: var(--font-ui-smaller);
 }
 
 .knomo-plugin.is-layout-mobile .knomo-tool-group::-webkit-scrollbar {

@@ -12,6 +12,7 @@ import type { RecordStatsView } from "../services/RecordStatsService";
 import type { ReferenceService } from "../services/ReferenceService";
 import type { SettingsService } from "../services/SettingsService";
 import type { ShuffleDayService } from "../services/ShuffleDayService";
+import { TagRenameService } from "../services/TagRenameService";
 import { MOBILE_INITIAL_MEMO_COUNT, type FileMemoOrchestrator } from "../services/FileMemoOrchestrator";
 import type { TimeBuoyMaintenanceOutcome } from "../types/fileMemo";
 import type { MemoMutation, MemoRecord } from "../types/memo";
@@ -65,6 +66,7 @@ import { ImagePreviewScrollLock } from "./ImagePreviewScrollLock";
 import { ImageResourceCache } from "./ImageResourceCache";
 import { getDestructiveConfirmReturnFocus, showKnomoConfirmModal } from "./KnomoConfirmModal";
 import { KnomoImagePreviewModal } from "./KnomoImagePreviewModal";
+import { showKnomoTagRenameModal } from "./KnomoTagRenameModal";
 import { filterVisibleMemos, memoMatchesSearch } from "./KnomoMemoFilter";
 import { openMemoDailyNoteDefault, openMemoDailyNoteInNewTab } from "./memoDailyNoteOpen";
 import {
@@ -2034,7 +2036,37 @@ export class KnomoView extends ItemView {
 			activeTagKey: this.activeTagKey,
 			expandedTagGroups: this.expandedTagGroups,
 			emptyText: t("tags.empty"),
+			onRenameTag: (tag) => { void this.renameSidebarTag(tag.name); },
 		});
+	}
+
+	private async renameSidebarTag(sourceTag: string): Promise<void> {
+		const targetTag = await showKnomoTagRenameModal(this.app, sourceTag);
+		if (targetTag === null || targetTag.toLowerCase() === sourceTag.toLowerCase()) {
+			return;
+		}
+		const service = new TagRenameService(this.app, () => this.syncOrchestrator.getActiveMemoFiles());
+		try {
+			const plan = await service.prepare(sourceTag, targetTag);
+			if (plan.changes.length === 0) {
+				new Notice(t("tags.renameNoChanges"));
+				return;
+			}
+			const confirmed = await showKnomoConfirmModal(this.app, {
+				title: t("tags.renameConfirmTitle"),
+				message: t("tags.renameConfirmDescription", { count: plan.changes.length }),
+				confirmLabel: t("tags.renameConfirm"),
+			});
+			if (!confirmed) {
+				return;
+			}
+			await service.apply(plan);
+			this.syncOrchestrator.invalidateAll();
+			await this.refresh(true);
+			new Notice(t("tags.renameComplete", { count: plan.changes.length }));
+		} catch (error) {
+			new Notice(formatServiceError(error, t("tags.renameFailed")));
+		}
 	}
 
 	private renderTrashCount(): void {
