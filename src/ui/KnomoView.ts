@@ -3921,7 +3921,7 @@ export class KnomoView extends ItemView {
 			attr: { type: "button", "aria-expanded": snapshot.collapsed ? "false" : "true" },
 		});
 		header.createSpan({ text: t("list.pinnedSummary", { count: memos.length }) });
-		setIcon(header.createSpan(), snapshot.collapsed ? "chevron-down" : "chevron-up");
+		setIcon(header.createSpan(), snapshot.collapsed ? "chevron-left" : "chevron-down");
 		this.registerDomEvent(header, "click", () => {
 			void this.pinnedMemos.setCollapsed(!snapshot.collapsed).then(() => this.forceRebuildCardFlow());
 		});
