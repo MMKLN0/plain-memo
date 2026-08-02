@@ -793,7 +793,7 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-view-host {
 
 .knomo-plugin .knomo-tag-row {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 52px 20px;
+	grid-template-columns: minmax(0, 1fr) 38px 16px;
 	align-items: center;
 	min-width: 0;
 	padding: 0;
@@ -802,10 +802,10 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-view-host {
 .knomo-plugin .knomo-tag-toggle {
 	display: grid;
 	grid-column: 2 / 4;
-	grid-template-columns: 52px 20px;
+	grid-template-columns: 38px 16px;
 	align-items: center;
 	width: 100%;
-	min-width: 72px;
+	min-width: 54px;
 	height: 32px;
 	min-height: 32px;
 	padding: 0;
@@ -843,8 +843,8 @@ body .workspace-leaf-content[data-type="plain-memo-view"] .knomo-view-host {
 	display: flex;
 	flex-direction: column;
 	gap: 0;
-	margin-left: 31px;
-	padding-left: 16px;
+	margin-left: 16px;
+	padding-left: 12px;
 	border-left: 1px solid var(--background-modifier-border);
 }
 
