@@ -26,10 +26,23 @@ test("unpin ignores a path that is not pinned without writing plugin data", asyn
 	assert.deepEqual(service.getSnapshot().paths, ["Cards/a.md"]);
 });
 
+test("reloadIfChanged adopts externally synchronized pinned memo data", async () => {
+	const harness = createStore({ pinnedMemos: { paths: ["Cards/a.md"], collapsed: false } });
+	const service = new PinnedMemoService(harness.store);
+	await service.load();
+
+	harness.replace({ pinnedMemos: { paths: ["Cards/b.md"], collapsed: true } });
+
+	assert.equal(await service.reloadIfChanged(), true);
+	assert.deepEqual(service.getSnapshot(), { paths: ["Cards/b.md"], collapsed: true });
+	assert.equal(await service.reloadIfChanged(), false);
+});
+
 function createStore(initialData: unknown): {
 	store: PluginDataStore;
 	read: () => unknown;
 	writes: () => number;
+	replace: (nextData: unknown) => void;
 } {
 	let data = structuredClone(initialData);
 	let writeCount = 0;
@@ -44,5 +57,10 @@ function createStore(initialData: unknown): {
 			return result.result;
 		},
 	} as PluginDataStore;
-	return { store, read: () => structuredClone(data), writes: () => writeCount };
+	return {
+		store,
+		read: () => structuredClone(data),
+		writes: () => writeCount,
+		replace: (nextData) => { data = structuredClone(nextData); },
+	};
 }

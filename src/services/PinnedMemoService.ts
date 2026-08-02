@@ -15,6 +15,12 @@ export class PinnedMemoService {
 	constructor(private readonly store: PluginDataStore) {}
 
 	async load(): Promise<void> { this.snapshot = parsePinnedMemoSnapshot(await this.store.read()); }
+	async reloadIfChanged(): Promise<boolean> {
+		const next = parsePinnedMemoSnapshot(await this.store.read());
+		if (arePinnedMemoSnapshotsEqual(this.snapshot, next)) return false;
+		this.snapshot = next;
+		return true;
+	}
 	getSnapshot(): PinnedMemoSnapshot { return { paths: [...this.snapshot.paths], collapsed: this.snapshot.collapsed }; }
 	isPinned(path: string): boolean { return this.snapshot.paths.includes(path); }
 
@@ -68,4 +74,10 @@ function normalizePinnedMemoSnapshot(value: unknown): PinnedMemoSnapshot {
 	if (!isRecord(value)) return { paths: [], collapsed: false };
 	const paths = Array.isArray(value.paths) ? [...new Set(value.paths.filter((path): path is string => typeof path === "string" && path.length > 0))] : [];
 	return { paths, collapsed: value.collapsed === true };
+}
+
+function arePinnedMemoSnapshotsEqual(left: PinnedMemoSnapshot, right: PinnedMemoSnapshot): boolean {
+	return left.collapsed === right.collapsed
+		&& left.paths.length === right.paths.length
+		&& left.paths.every((path, index) => path === right.paths[index]);
 }

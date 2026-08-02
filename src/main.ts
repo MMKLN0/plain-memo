@@ -19,6 +19,7 @@ import { KnomoView } from "./ui/KnomoView";
 import { MobileNavbarCompactController } from "./ui/MobileNavbarCompactController";
 
 const OPEN_VIEWS_REFRESH_DEBOUNCE_MS = 150;
+const PINNED_MEMO_SYNC_POLL_MS = 2_000;
 
 export function getStartupDailyScanDays(isMobile: boolean): number { return isMobile ? 7 : 30; }
 
@@ -65,6 +66,7 @@ export default class KnomoPlugin extends Plugin {
 		));
 		this.registerMemoFileEvents();
 		this.registerAttachmentEvents();
+		this.registerPinnedMemoSyncRefresh();
 		this.registerHoverLinkSource(KNOMO_VIEW_TYPE, { display: "PlainMemo", defaultMod: false });
 		this.addRibbonIcon(KNOMO_LOGO_ICON, t("app.openKnomo"), () => { void this.activateView(); });
 		this.addCommand({ id: "open-view", name: t("app.openKnomo"), callback: () => { void this.activateView(); } });
@@ -137,8 +139,29 @@ export default class KnomoPlugin extends Plugin {
 		}));
 	}
 	private async manualRefresh() {
+		await this.reloadPinnedMemosFromStorage();
 		this.syncOrchestrator.invalidateAll();
 		await this.refreshOpenViews(true);
+	}
+	private registerPinnedMemoSyncRefresh(): void {
+		const refresh = (): void => { void this.reloadPinnedMemosFromStorage(); };
+		this.registerDomEvent(this.app.workspace.containerEl.win, "focus", refresh);
+		this.registerDomEvent(this.app.workspace.containerEl.doc, "visibilitychange", () => {
+			if (this.app.workspace.containerEl.doc.visibilityState === "visible") refresh();
+		});
+		this.registerInterval(this.app.workspace.containerEl.win.setInterval(() => {
+			if (
+				this.app.workspace.containerEl.doc.visibilityState === "visible"
+				&& this.app.workspace.getLeavesOfType(KNOMO_VIEW_TYPE).length > 0
+			) refresh();
+		}, PINNED_MEMO_SYNC_POLL_MS));
+	}
+	private async reloadPinnedMemosFromStorage(): Promise<boolean> {
+		if (!await this.pinnedMemoService.reloadIfChanged()) return false;
+		for (const leaf of this.app.workspace.getLeavesOfType(KNOMO_VIEW_TYPE)) {
+			if (leaf.view instanceof KnomoView) leaf.view.refreshPinnedMemoPresentation();
+		}
+		return true;
 	}
 	private broadcastMemoMutation(mutation: MemoMutation, source: KnomoView): void {
 		for (const leaf of this.app.workspace.getLeavesOfType(KNOMO_VIEW_TYPE)) if (leaf.view instanceof KnomoView && leaf.view !== source) leaf.view.applyMemoMutation(mutation);

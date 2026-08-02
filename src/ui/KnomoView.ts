@@ -920,6 +920,10 @@ export class KnomoView extends ItemView {
 		this.mobileNavbarCompactController?.requestSync();
 	}
 
+	refreshPinnedMemoPresentation(): void {
+		this.forceRebuildCardFlow();
+	}
+
 	async onOpen(): Promise<void> {
 		this.lastKnownLocalDate = formatTimeBuoyDate(new Date());
 		this.contentEl.addClass("knomo-view-host");
