@@ -5715,7 +5715,9 @@ export class KnomoView extends ItemView {
 			+ parseFloat(buttonStyle.marginTop)
 			+ parseFloat(buttonStyle.marginBottom);
 		candidate.card.addClass("has-floating-collapse-control");
-		candidate.card.style.setProperty("--knomo-floating-collapse-card-padding-bottom", `${Math.ceil(reservedHeight)}px`);
+		candidate.card.setCssProps({
+			"--knomo-floating-collapse-card-padding-bottom": `${Math.ceil(reservedHeight)}px`,
+		});
 		candidate.button.addClass("is-viewport-floating");
 		candidate.button.setCssProps({
 			"--knomo-floating-collapse-bottom": `${Math.round(bottom)}px`,

@@ -164,7 +164,7 @@ class MobileTagRenameOverlay {
 			const top = keyboardOpen
 				? viewportTop + viewportHeight - panelHeight - 12
 				: viewportTop + Math.max(12, (viewportHeight - panelHeight) / 2 - 70);
-			panel.style.top = `${Math.round(top)}px`;
+			panel.setCssProps({ top: `${Math.round(top)}px` });
 		};
 		this.updatePosition = updatePosition;
 		this.viewport = window.visualViewport;

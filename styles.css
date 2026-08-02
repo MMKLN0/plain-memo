@@ -175,6 +175,15 @@ body {
 	line-height: 1.6;
 }
 
+/* Keep modal surfaces composited after their entrance transform is cleared on Android. */
+body:has(.workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-layout-mobile.is-drawer-open) > .modal-container {
+	transform: translateZ(0);
+}
+
+body:has(.workspace-leaf-content[data-type="plain-memo-view"] .knomo-plugin.is-layout-mobile.is-drawer-open) > .modal-container > .modal {
+	transform: translateZ(0);
+}
+
 .workspace-leaf-content[data-type="plain-memo-view"] {
 	--knomo-page-background: var(--knomo-app-background-secondary);
 	--knomo-surface: var(--knomo-app-background-primary);
