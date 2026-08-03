@@ -34,8 +34,10 @@ import { getMemoVisibleContent } from "../utils/memoFrontmatter";
 import { formatServiceError, formatSettingsText } from "../utils/serviceText";
 import type { MemoAction, TrashAction } from "./KnomoActionDispatch";
 import { CardImageLoadQueue, type CardImageLoadSurface } from "./CardImageLoadQueue";
+import { AnimationFrameTaskScheduler } from "./AnimationFrameTaskScheduler";
 import { DateChangeWatcher } from "./DateChangeWatcher";
 import { DesktopSidebarStateController } from "./DesktopSidebarStateController";
+import { getDesktopFloatingCollapseRightOffset, shouldFloatCollapseControl } from "./FloatingCollapseControl";
 import { renderKnomoMemoCard, renderKnomoTrashMemoCard } from "./KnomoCard";
 import type { MemoCardTimeBuoy } from "./KnomoCard";
 import {
@@ -211,6 +213,7 @@ const CARD_IMAGE_LOAD_WATCHDOG_MS = 10_000;
 const SEARCH_DEBOUNCE_MS = 220;
 const TIME_BUOY_PICKER_CLOSE_FALLBACK_MS = 280;
 const MOBILE_COLLAPSE_BUTTON_FAB_GAP = 20;
+const DESKTOP_COLLAPSE_BUTTON_VIEWPORT_GAP = 30;
 const MOBILE_VIEW_HEADER_SELECTORS = [
 	".workspace-leaf.mod-active .view-header",
 	".mod-active .view-header",
@@ -364,6 +367,7 @@ export class KnomoView extends ItemView {
 	private currentLayout: LayoutMode = "desktop-wide";
 	private renderedTimeBuoyEnabled: boolean | null = null;
 	private layoutObserver: ResizeObserver | null = null;
+	private readonly floatingCollapseControlScheduler: AnimationFrameTaskScheduler;
 	private filteredMemosCache: FilteredMemosCache | null = null;
 	private readonly cardFlowCoordinator = new KnomoCardFlowCoordinator();
 	private memoSearchCache = new MemoSearchCache();
@@ -562,6 +566,10 @@ export class KnomoView extends ItemView {
 		private readonly onManualRefresh: () => Promise<void>,
 	) {
 		super(leaf);
+		this.floatingCollapseControlScheduler = new AnimationFrameTaskScheduler(
+			() => this.containerEl.win,
+			() => this.syncFloatingCollapseControls(),
+		);
 		this.popupState = new KnomoPopupState(() => this.containerEl.win);
 		this.composerListEnterState = new ComposerListEnterState({
 			scheduleTask: (callback, delayMs) => this.containerEl.win.setTimeout(callback, delayMs),
@@ -2013,6 +2021,7 @@ export class KnomoView extends ItemView {
 			this.layoutObserver.disconnect();
 			this.layoutObserver = null;
 		}
+		this.floatingCollapseControlScheduler.cancel();
 	}
 
 	private syncLayoutMeasurements(): void {
@@ -2023,6 +2032,12 @@ export class KnomoView extends ItemView {
 		if (this.timeBuoyPickerEl !== null && this.timeBuoyPickerState?.mobile === false) {
 			this.positionDesktopTimeBuoyPicker(this.timeBuoyPickerEl);
 		}
+		this.scheduleFloatingCollapseControlSync();
+	}
+
+	/** Defers collapse-control measurements until the container has finished resizing. */
+	private scheduleFloatingCollapseControlSync(): void {
+		this.floatingCollapseControlScheduler.schedule();
 	}
 
 	private isMobileComposerLayered(): boolean {
@@ -2899,7 +2914,7 @@ export class KnomoView extends ItemView {
 			control.setText(expanded ? t("card.collapse") : t("card.expand"));
 			control.setAttr("aria-expanded", expanded ? "true" : "false");
 		}
-		this.containerEl.win.requestAnimationFrame(() => this.syncFloatingCollapseControls());
+		this.scheduleFloatingCollapseControlSync();
 	}
 
 	private renderTrashMemoCard(memo: MemoRecord, generation: number, renderIndex: number): void {
@@ -5712,7 +5727,7 @@ export class KnomoView extends ItemView {
 	}
 
 	private handleCardFlowScroll(): void {
-		this.syncFloatingCollapseControls();
+		this.scheduleFloatingCollapseControlSync();
 		if (this.activeNav === "time-buoy") {
 			const cardFlow = this.cardFlowEl;
 			if (
@@ -5770,10 +5785,15 @@ export class KnomoView extends ItemView {
 				}
 				const cardRect = item.card.getBoundingClientRect();
 				const buttonRect = item.button.getBoundingClientRect();
-				return cardRect.top < viewportBottom
-					&& cardRect.bottom > flowRect.top
-					&& (this.currentLayout !== "mobile" || cardRect.top < floatingBoundary)
-					&& buttonRect.bottom > floatingBoundary;
+				return shouldFloatCollapseControl({
+					cardTop: cardRect.top,
+					cardBottom: cardRect.bottom,
+					buttonBottom: buttonRect.bottom,
+					flowTop: flowRect.top,
+					viewportBottom,
+					floatingBoundary,
+					isMobile: this.currentLayout === "mobile",
+				});
 			})
 			.sort((left, right) => {
 				const center = (flowRect.top + flowRect.bottom) / 2;
@@ -5788,11 +5808,16 @@ export class KnomoView extends ItemView {
 		const buttonRect = candidate.button.getBoundingClientRect();
 		const right = this.currentLayout === "mobile"
 			? Math.max(0, this.containerEl.win.innerWidth - buttonRect.right)
-			: Math.max(8, this.containerEl.win.innerWidth - Math.min(cardRect.right, flowRect.right) + 8);
+			: getDesktopFloatingCollapseRightOffset(
+				this.containerEl.getBoundingClientRect().right,
+				cardRect.right,
+				flowRect.right,
+			);
 		const anchorTop = fab?.getBoundingClientRect().top ?? viewportBottom;
 		const bottom = Math.max(
-			12,
-			this.containerEl.win.innerHeight - anchorTop + (fab === null ? 8 : MOBILE_COLLAPSE_BUTTON_FAB_GAP),
+			this.currentLayout === "mobile" ? 12 : DESKTOP_COLLAPSE_BUTTON_VIEWPORT_GAP,
+			this.containerEl.win.innerHeight - anchorTop
+				+ (fab === null ? DESKTOP_COLLAPSE_BUTTON_VIEWPORT_GAP : MOBILE_COLLAPSE_BUTTON_FAB_GAP),
 		);
 		if (this.currentLayout === "mobile") {
 			candidate.button.addClass("is-floating-collapse-source");
