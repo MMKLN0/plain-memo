@@ -4,7 +4,7 @@ English | [简体中文](./README.zh-CN.md)
 
 > An Obsidian Memos plugin that stores each memo as an independent Markdown file.
 
-Current stable release: [PlainMemo 2.2.0](https://github.com/MMKLN0/plain-memo/releases/tag/2.2.0)
+Current stable release: [PlainMemo 2.2.1](https://github.com/MMKLN0/plain-memo/releases/tag/2.2.1)
 
 PlainMemo is an unofficial fork of [BanyanSo/knomo](https://github.com/BanyanSo/knomo), continued under the upstream MIT license. It is not an official release channel for the upstream project and does not imply upstream endorsement or support.
 
@@ -28,8 +28,11 @@ This is an intentional storage-model change. Existing upstream Daily Notes and m
 - Create, edit, delete, search, filter, and revisit standalone Markdown memos in a card flow.
 - Recursively scan multiple Vault-relative folders and choose a separate default folder for new memos.
 - Recognize `#tags` and Obsidian WikiLinks such as `[[Project note]]`.
+- Browse hierarchical tags in the sidebar and rename a tag path, including its descendants, across recognized PlainMemo files.
 - Render Markdown lists, tasks, quotes, images, and links.
 - Collapse long cards after a configurable line threshold.
+- Pin a configurable number of important memos above the regular card feed, with a collapsible pinned area.
+- Refresh pinned-card state automatically after a sync provider updates PlainMemo's plugin data, without requiring an Obsidian restart.
 - Prepare existing Markdown files by adding recognizable creation-time filename suffixes without rewriting their content.
 - Import Flomo HTML or ZIP exports while preserving memo timestamps, tags, web links, and optional attachments.
 - Use optional Time buoy reminders from `@YYYY-MM-DD` in the memo body.
@@ -110,7 +113,7 @@ Each Flomo memo becomes a standalone PlainMemo Markdown file. The original body,
 
 ## Data and privacy
 
-Every memo is an ordinary Markdown file in your Vault. PlainMemo requires no account, relies on no external service, and does not actively upload note content. Plugin settings and rebuildable local state only support the UI and features; memo content remains in its own `.md` file.
+Every memo is an ordinary Markdown file in your Vault. PlainMemo requires no account, relies on no external service, and does not actively upload note content. Plugin settings, the pinned-memo list, and other UI state are stored in PlainMemo's plugin `data.json`; memo content remains in its own `.md` file.
 
 ## Development
 

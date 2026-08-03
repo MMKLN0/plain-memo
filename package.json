@@ -1,6 +1,6 @@
 {
 	"name": "plain-memo",
-	"version": "2.2.0",
+	"version": "2.2.1",
 	"description": "Capture and manage local-first memos as standalone Markdown files.",
 	"main": "main.js",
 	"scripts": {

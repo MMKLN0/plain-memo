@@ -4,7 +4,7 @@
 
 > 一个将碎片笔记保存为独立 Markdown 文件的 Obsidian Memos 插件。
 
-当前稳定版本：[PlainMemo 2.2.0](https://github.com/MMKLN0/plain-memo/releases/tag/2.2.0)
+当前稳定版本：[PlainMemo 2.2.1](https://github.com/MMKLN0/plain-memo/releases/tag/2.2.1)
 
 PlainMemo 是 [BanyanSo/knomo](https://github.com/BanyanSo/knomo) 的非官方 fork，基于上游 MIT 许可证继续开发。本仓库不是上游项目的官方发布渠道，也不代表上游作者的观点或支持承诺。
 
@@ -28,8 +28,11 @@ PlainMemo 的目标是让每张卡片都是一个可独立阅读、可用 Obsidi
 - 在卡片流中创建、编辑、删除、搜索、筛选和回看独立 Markdown memo；
 - 递归扫描多个 Vault 相对文件夹，并为新 memo 单独指定默认保存位置；
 - 识别 `#标签` 与 Obsidian WikiLink（如 `[[项目笔记]]`）；
+- 在侧栏浏览层级标签，并可重命名标签路径，将修改同步应用到该标签及其子标签；
 - 渲染 Markdown 列表、任务、引用、图片和链接；
 - 长卡片可按设置的行数阈值折叠；
+- 可将重要 memo 置顶到普通卡片流上方，支持设置数量上限并折叠置顶区域；
+- 同步服务更新 PlainMemo 插件数据后，置顶状态会自动刷新，无需重启 Obsidian；
 - 为已有 Markdown 文件补充可识别的创建时间后缀，不改写正文；
 - 导入 Flomo HTML 或 ZIP，并保留时间、标签、网页链接和可选附件；
 - 可选的时光浮标：识别正文中的 `@YYYY-MM-DD`；
@@ -110,7 +113,7 @@ PlainMemo 设置中还提供“导入 Flomo 数据”：
 
 ## 数据与隐私
 
-所有 memo 都是 Vault 内的普通 Markdown 文件。PlainMemo 不要求账号、不依赖外部服务器，也不会主动上传笔记内容。插件的设置和可重建本地状态仅用于界面与功能；笔记正文仍保存在各自的 `.md` 文件中。
+所有 memo 都是 Vault 内的普通 Markdown 文件。PlainMemo 不要求账号、不依赖外部服务器，也不会主动上传笔记内容。插件设置、置顶笔记列表及其他界面状态保存在 PlainMemo 的插件 `data.json` 中；笔记正文仍保存在各自的 `.md` 文件中。
 
 ## 开发
 
