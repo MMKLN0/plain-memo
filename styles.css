@@ -3691,6 +3691,20 @@ body .knomo-mobile-create-fab.is-hidden {
 }
 
 /* 移动端 composer body layer：最终层级覆盖 */
+.modal-container.knomo-mobile-composer-back-guard {
+	pointer-events: none;
+	background: transparent;
+}
+
+.modal-container.knomo-mobile-composer-back-guard > .modal-bg,
+.modal-container.knomo-mobile-composer-back-guard > .modal {
+	display: none !important;
+}
+
+.modal-container.knomo-mobile-composer-back-guard > .knomo-mobile-composer-layer {
+	pointer-events: auto;
+}
+
 .knomo-mobile-composer-layer {
 	--knomo-mobile-composer-bottom-offset: 0px;
 	position: fixed;

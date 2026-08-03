@@ -1,5 +1,5 @@
-import { Component, ItemView, Keymap, Notice, Platform, Scope, setIcon, TFile } from "obsidian";
-import type { HoverPopover, WorkspaceLeaf } from "obsidian";
+import { Component, ItemView, Keymap, Modal, Notice, Platform, Scope, setIcon, TFile } from "obsidian";
+import type { App, HoverPopover, WorkspaceLeaf } from "obsidian";
 
 import { KNOMO_VIEW_DISPLAY_TEXT, KNOMO_VIEW_TYPE } from "../constants";
 import { KNOMO_LOGO_ICON, KNOMO_SEARCH_ICON } from "../icons";
@@ -227,6 +227,50 @@ type WindowWithResizeObserver = Window & {
 	ResizeObserver?: typeof ResizeObserver;
 };
 
+class MobileComposerBackGuardModal extends Modal {
+	private ownerClosing = false;
+	private closed = false;
+	private composerLayerEl: HTMLElement | null = null;
+
+	constructor(app: App, private readonly handleBack: () => void) {
+		super(app);
+		this.shouldRestoreSelection = false;
+		this.containerEl.addClass("knomo-mobile-composer-back-guard");
+	}
+
+	closeFromOwner(): void {
+		this.ownerClosing = true;
+		this.close();
+	}
+
+	attachComposerLayer(layerEl: HTMLElement | null): void {
+		if (layerEl === null) {
+			return;
+		}
+		this.composerLayerEl = layerEl;
+		if (layerEl.parentElement !== this.containerEl) {
+			this.containerEl.appendChild(layerEl);
+		}
+	}
+
+	override close(): void {
+		if (this.closed) {
+			return;
+		}
+		this.closed = true;
+		const shouldHandleBack = !this.ownerClosing;
+		const layerEl = this.composerLayerEl;
+		if (layerEl !== null) {
+			layerEl.ownerDocument.body.appendChild(layerEl);
+			this.composerLayerEl = null;
+		}
+		super.close();
+		if (shouldHandleBack) {
+			this.handleBack();
+		}
+	}
+}
+
 function compareText(left: string, right: string): number {
 	return left < right ? -1 : left > right ? 1 : 0;
 }
@@ -308,6 +352,7 @@ export class KnomoView extends ItemView {
 	private expandedMemoIds = new Set<string>();
 	private composerOpen = false;
 	private pendingMobileEditCancel = false;
+	private mobileComposerBackGuardModal: MobileComposerBackGuardModal | null = null;
 	private editingMemo: MemoRecord | null = null;
 	private quoteSourceMemoId: string | null = null;
 	private quoteReferenceText: string | null = null;
@@ -948,6 +993,9 @@ export class KnomoView extends ItemView {
 			if (this.currentLayout !== "mobile") {
 				return;
 			}
+			if (this.mobileComposerBackGuardModal !== null) {
+				return;
+			}
 			if (this.timeBuoyPickerState !== null) {
 				event.preventDefault();
 				event.stopPropagation();
@@ -983,6 +1031,7 @@ export class KnomoView extends ItemView {
 	async onClose(): Promise<void> {
 		this.mobileNavbarCompactController?.stop();
 		this.mobileNavbarCompactController = null;
+		this.closeMobileComposerBackGuard();
 		this.tagSuggest?.close();
 		this.tagSuggest = null;
 		this.wikiLinkSuggest?.destroy();
@@ -3832,7 +3881,49 @@ export class KnomoView extends ItemView {
 		this.mobileDrawerOpen = false;
 		this.scopeMenuOpen = false;
 		this.pauseMobileBackgroundWork();
+		this.openMobileComposerBackGuard();
 		this.mobileComposerController.open();
+		this.mobileComposerBackGuardModal?.attachComposerLayer(this.mobileComposerController.getLayerEl());
+	}
+
+	/** Registers the composer in Obsidian's native mobile Back stack without rendering another visible modal. */
+	private openMobileComposerBackGuard(): void {
+		if (this.currentLayout !== "mobile" || this.mobileComposerBackGuardModal !== null) {
+			return;
+		}
+		const guard = new MobileComposerBackGuardModal(this.app, () => this.handleMobileComposerBackGuardClosed(guard));
+		this.mobileComposerBackGuardModal = guard;
+		guard.open();
+		guard.attachComposerLayer(this.mobileComposerController.getLayerEl());
+	}
+
+	private closeMobileComposerBackGuard(): void {
+		const guard = this.mobileComposerBackGuardModal;
+		if (guard === null) {
+			return;
+		}
+		this.mobileComposerBackGuardModal = null;
+		guard.closeFromOwner();
+	}
+
+	private handleMobileComposerBackGuardClosed(guard: MobileComposerBackGuardModal): void {
+		if (this.mobileComposerBackGuardModal !== guard) {
+			return;
+		}
+		this.mobileComposerBackGuardModal = null;
+		if (this.currentLayout !== "mobile" || !this.composerOpen) {
+			return;
+		}
+		if (this.timeBuoyPickerState !== null) {
+			this.closeTimeBuoyPicker(true);
+			this.openMobileComposerBackGuard();
+			return;
+		}
+		if (this.mobileComposerController.dismissVisibleKeyboard()) {
+			this.openMobileComposerBackGuard();
+			return;
+		}
+		void this.saveInput();
 	}
 
 	private pauseMobileBackgroundWork(): void {
@@ -4008,6 +4099,7 @@ export class KnomoView extends ItemView {
 	}
 
 	private handleMobileComposerClosed(): void {
+		this.closeMobileComposerBackGuard();
 		if (this.pendingMobileEditCancel) {
 			this.pendingMobileEditCancel = false;
 			this.clearComposerMode();
@@ -4295,7 +4387,9 @@ export class KnomoView extends ItemView {
 		if (this.currentLayout === "mobile" || this.composerEl === null || this.cardFlowEl === null) {
 			return;
 		}
-		const card = this.getDirectCardElements(this.cardFlowEl).find((item) => item.getAttr("data-memo-id") === memoId) ?? null;
+		// Pinned cards are nested in the pinned section, while ordinary cards are direct children.
+		const card = Array.from(this.cardFlowEl.querySelectorAll<HTMLElement>(".knomo-card"))
+			.find((item) => item.getAttr("data-memo-id") === memoId) ?? null;
 		const body = card?.find(".knomo-card-body") ?? null;
 		if (card === null || body === null) {
 			return;
