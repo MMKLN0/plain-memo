@@ -111,7 +111,7 @@ test("editing a memo trashes only removed managed pictures without other referen
 
 test("soft deletion preserves managed pictures and permanent deletion cleans the last reference", async () => {
 	const harness = await createHarness([
-		["Flomo/Pictures_2607250855.md", "Body\n![[PlainMemo/picture/photo.png]]"],
+		["Flomo/Pictures_2607250855.md", "Body\n![[../PlainMemo/picture/photo.png]]"],
 		["PlainMemo/picture/photo.png", "photo"],
 	]);
 	const memo = (await harness.store.listMemos())[0];

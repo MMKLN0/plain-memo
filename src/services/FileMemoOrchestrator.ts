@@ -243,7 +243,8 @@ export class FileMemoOrchestrator {
 	async purgeDeletedMemoRecord(memo: MemoRecord): Promise<void> {
 		const file = this.requireFile(memo.dailyRef.path);
 		if (!this.isManagedTrashPath(file.path)) throw new Error("Only memos in PlainMemo trash can be permanently deleted.");
-		const pictures = this.managedPictures.findReferencedPictures(memo.contentSnapshot, file.path);
+		const originalPath = this.getOriginalPathFromTrash(file.path) ?? file.path;
+		const pictures = this.managedPictures.findReferencedPictures(memo.contentSnapshot, originalPath);
 		const deletedPath = file.path;
 		await this.app.fileManager.trashFile(file);
 		await this.cleanupManagedPictures(pictures, [deletedPath]);

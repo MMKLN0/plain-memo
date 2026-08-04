@@ -28,7 +28,7 @@ export class AttachmentService {
 		private readonly managedPictures = new ManagedPictureService(app),
 	) {}
 
-	async createImageEmbedLinks(sourcePath: string, files: readonly File[]): Promise<string[]> {
+	async createImageEmbedLinks(_sourcePath: string, files: readonly File[]): Promise<string[]> {
 		const links: string[] = [];
 		const createdAttachments: TFile[] = [];
 		try {
@@ -38,7 +38,7 @@ export class AttachmentService {
 					new Uint8Array(await file.arrayBuffer()),
 				);
 				createdAttachments.push(attachment);
-				links.push(`!${this.app.fileManager.generateMarkdownLink(attachment, sourcePath)}`);
+				links.push(`![[${attachment.path}]]`);
 			}
 			return links;
 		} catch (error) {

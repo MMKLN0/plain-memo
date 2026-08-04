@@ -33,6 +33,16 @@ test("resolves only local pictures owned by PlainMemo", async () => {
 	]);
 });
 
+test("resolves relative picture links using a memo's path before it entered PlainMemo trash", async () => {
+	const harness = await createHarness();
+	harness.addFile("PlainMemo/picture/photo.png", "photo");
+
+	assert.deepEqual(harness.service.findReferencedPictures(
+		"![[picture/photo.png]]",
+		"PlainMemo/_knomo-trash/PlainMemo/Memo_2608041200.md",
+	), ["PlainMemo/picture/photo.png"]);
+});
+
 test("trashes an unreferenced managed picture while retaining shared and external files", async () => {
 	const harness = await createHarness();
 	harness.addFile("PlainMemo/picture/orphan.png", "orphan");

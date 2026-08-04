@@ -36,7 +36,7 @@ export class ManagedPictureService {
 
 	/** Resolves managed pictures referenced by one Markdown document. */
 	findReferencedPictures(content: string, sourcePath: string): string[] {
-		return [...this.collectReferencedPicturePaths(content, sourcePath)].sort();
+		return [...this.collectReferencedPicturePaths(content, getLinkResolutionSourcePaths(sourcePath))].sort();
 	}
 
 	/** Moves managed pictures to Obsidian Trash when no remaining Markdown file references them. */
@@ -52,7 +52,7 @@ export class ManagedPictureService {
 		for (const file of this.app.vault.getMarkdownFiles()) {
 			if (excluded.has(file.path)) continue;
 			const content = await this.app.vault.cachedRead(file);
-			for (const referencedPath of this.collectReferencedPicturePaths(content, file.path)) {
+			for (const referencedPath of this.collectReferencedPicturePaths(content, getLinkResolutionSourcePaths(file.path))) {
 				pending.delete(referencedPath);
 			}
 			if (pending.size === 0) return [];
@@ -77,29 +77,36 @@ export class ManagedPictureService {
 	}
 
 	/** Collects managed picture paths from image embeds and ordinary local links. */
-	private collectReferencedPicturePaths(content: string, sourcePath: string): Set<string> {
+	private collectReferencedPicturePaths(content: string, sourcePath: string | readonly string[]): Set<string> {
 		const rawPaths = [
 			...parseMemoImages(content).map((image) => image.path),
 			...parseMemoLinks(content)
 				.filter((link) => link.syntax !== "url")
 				.map((link) => link.target),
 		];
+		const sourcePaths = typeof sourcePath === "string" ? [sourcePath] : sourcePath;
 		const paths = new Set<string>();
 		for (const rawPath of rawPaths) {
-			const resolved = this.resolvePicturePath(rawPath, sourcePath);
+			const resolved = this.resolvePicturePath(rawPath, sourcePaths);
 			if (resolved !== null && isManagedPicturePath(resolved)) paths.add(resolved);
 		}
 		return paths;
 	}
 
 	/** Resolves an Obsidian link target, with a full Vault-path fallback during cache lag. */
-	private resolvePicturePath(rawPath: string, sourcePath: string): string | null {
+	private resolvePicturePath(rawPath: string, sourcePaths: readonly string[]): string | null {
 		if (hasUrlScheme(rawPath)) return null;
-		const target = this.app.metadataCache.getFirstLinkpathDest(rawPath, sourcePath);
-		if (target instanceof TFile) return normalizePath(target.path);
 		const directPath = normalizeLocalLinkPath(rawPath);
 		const direct = this.app.vault.getAbstractFileByPath(directPath);
-		return direct instanceof TFile ? normalizePath(direct.path) : null;
+		if (direct instanceof TFile) return normalizePath(direct.path);
+		for (const sourcePath of sourcePaths) {
+			const relativePath = resolveRelativeVaultPath(rawPath, sourcePath);
+			const relative = this.app.vault.getAbstractFileByPath(relativePath);
+			if (relative instanceof TFile) return normalizePath(relative.path);
+			const target = this.app.metadataCache.getFirstLinkpathDest(rawPath, sourcePath);
+			if (target instanceof TFile) return normalizePath(target.path);
+		}
+		return null;
 	}
 }
 
@@ -107,10 +114,33 @@ export class ManagedPictureService {
 function toSafePictureFileName(fileName: string): string {
 	const basename = fileName.replace(/\\/g, "/").split("/").pop()?.trim() ?? "";
 	const safe = basename
-		.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
+		.replace(/[<>:"/\\|?*\[\]#^\u0000-\u001F]/g, "_")
 		.replace(/[. ]+$/g, "")
 		.trim();
 	return safe || "image";
+}
+
+/** Restores the source path used by relative links after a memo enters PlainMemo trash. */
+function getLinkResolutionSourcePaths(path: string): string[] {
+	const normalized = normalizePath(path);
+	const marker = "/_knomo-trash/";
+	const markerIndex = normalized.indexOf(marker);
+	if (markerIndex === -1) return [normalized];
+	const originalPath = normalized.slice(markerIndex + marker.length);
+	return [originalPath, normalized];
+}
+
+/** Resolves dot segments against the directory containing a Markdown source file. */
+function resolveRelativeVaultPath(rawPath: string, sourcePath: string): string {
+	const decoded = normalizeLocalLinkPath(rawPath);
+	const sourceSegments = normalizePath(sourcePath).split("/");
+	sourceSegments.pop();
+	for (const segment of decoded.split("/")) {
+		if (segment.length === 0 || segment === ".") continue;
+		if (segment === "..") sourceSegments.pop();
+		else sourceSegments.push(segment);
+	}
+	return normalizePath(sourceSegments.join("/"));
 }
 
 /** Converts a local link target into a normalized Vault-relative path. */

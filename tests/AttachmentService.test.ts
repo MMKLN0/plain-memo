@@ -3,14 +3,9 @@ import assert from "node:assert/strict";
 
 import { AttachmentService } from "../src/services/AttachmentService";
 
-test("AttachmentService creates image embed links through Obsidian attachment APIs", async () => {
+test("AttachmentService creates stable full-path image embeds in the managed picture folder", async () => {
 	const createdAttachments: Array<{ path: string; data: string }> = [];
 	const service = new AttachmentService({
-		fileManager: {
-			generateMarkdownLink: (attachment: { path: string }, sourcePath: string) => {
-				return `[[${attachment.path}|${sourcePath}]]`;
-			},
-		},
 	} as never, {
 		createBinary: async (name: string, data: Uint8Array) => {
 			const attachment = { path: `PlainMemo/picture/${name}` };
@@ -32,8 +27,8 @@ test("AttachmentService creates image embed links through Obsidian attachment AP
 		{ path: "PlainMemo/picture/second.jpg", data: "second-data" },
 	]);
 	assert.deepEqual(links, [
-		"![[PlainMemo/picture/first.png|Daily/2026-06-02.md]]",
-		"![[PlainMemo/picture/second.jpg|Daily/2026-06-02.md]]",
+		"![[PlainMemo/picture/first.png]]",
+		"![[PlainMemo/picture/second.jpg]]",
 	]);
 });
 
@@ -42,7 +37,6 @@ test("AttachmentService trashes attachments created earlier in a failed batch", 
 	let createCount = 0;
 	const service = new AttachmentService({
 		fileManager: {
-			generateMarkdownLink: (attachment: { path: string }) => `[[${attachment.path}]]`,
 			trashFile: async (attachment: { path: string }) => {
 				trashedPaths.push(attachment.path);
 			},
@@ -72,7 +66,6 @@ test("AttachmentService continues rollback after one attachment cannot be trashe
 	let createCount = 0;
 	const service = new AttachmentService({
 		fileManager: {
-			generateMarkdownLink: (attachment: { path: string }) => `[[${attachment.path}]]`,
 			trashFile: async (attachment: { path: string }) => {
 				trashAttempts.push(attachment.path);
 				if (attachment.path.endsWith("second.png")) {
