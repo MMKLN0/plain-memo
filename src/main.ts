@@ -30,6 +30,7 @@ const OPEN_VIEWS_REFRESH_DEBOUNCE_MS = 150;
 const DESKTOP_SHARED_STATE_POLL_MS = 2_000;
 const MOBILE_SHARED_STATE_POLL_MS = 1_000;
 const TRASH_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1_000;
+const MOBILE_SYNC_SETTLE_REFRESH_MS = 1_200;
 
 export function getStartupDailyScanDays(isMobile: boolean): number { return isMobile ? 7 : 30; }
 
@@ -44,6 +45,10 @@ export default class KnomoPlugin extends Plugin {
 	syncOrchestrator!: FileMemoOrchestrator;
 	pinnedMemoService!: PinnedMemoService;
 	private viewRefreshScheduler: ViewRefreshScheduler | null = null;
+	private mobileMemoSettleRefreshScheduler: ViewRefreshScheduler | null = null;
+	private mobileAttachmentSettleRefreshScheduler: ViewRefreshScheduler | null = null;
+	private readonly pendingMobileMemoPaths = new Set<string>();
+	private readonly pendingMobileAttachmentPaths = new Set<string>();
 	private trashCleanupPromise: Promise<void> | null = null;
 	private lastTrashCleanupAt = 0;
 
@@ -76,6 +81,16 @@ export default class KnomoPlugin extends Plugin {
 			() => this.refreshOpenViews(),
 			OPEN_VIEWS_REFRESH_DEBOUNCE_MS,
 		);
+		this.mobileMemoSettleRefreshScheduler = new ViewRefreshScheduler(
+			() => this.app.workspace.containerEl.win,
+			() => this.refreshSettledMobileMemoPaths(),
+			MOBILE_SYNC_SETTLE_REFRESH_MS,
+		);
+		this.mobileAttachmentSettleRefreshScheduler = new ViewRefreshScheduler(
+			() => this.app.workspace.containerEl.win,
+			() => this.refreshSettledMobileAttachmentPaths(),
+			MOBILE_SYNC_SETTLE_REFRESH_MS,
+		);
 
 		this.registerView(KNOMO_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KnomoView(
 			leaf, this.settingsService, this.syncOrchestrator, referenceService,
@@ -100,7 +115,12 @@ export default class KnomoPlugin extends Plugin {
 		this.addCommand({ id: "open-view", name: t("app.openKnomo"), callback: () => { void this.activateView(); } });
 	}
 
-	onunload(): void { this.viewRefreshScheduler?.clear(); MobileNavbarCompactController.cleanupDocument(this.app.workspace.containerEl.doc); }
+	onunload(): void {
+		this.viewRefreshScheduler?.clear();
+		this.mobileMemoSettleRefreshScheduler?.clear();
+		this.mobileAttachmentSettleRefreshScheduler?.clear();
+		MobileNavbarCompactController.cleanupDocument(this.app.workspace.containerEl.doc);
+	}
 
 	async activateView(): Promise<void> {
 		const existing = this.app.workspace.getLeavesOfType(KNOMO_VIEW_TYPE)[0];
@@ -137,6 +157,9 @@ export default class KnomoPlugin extends Plugin {
 				void this.queueRefreshOpenViews();
 			}
 		}));
+		this.registerEvent(this.app.metadataCache.on("changed", (file) => {
+			this.handleMemoFileChange(file.path);
+		}));
 	}
 
 	private handleMemoFileChange(path: string, removePinned = false): void {
@@ -144,10 +167,16 @@ export default class KnomoPlugin extends Plugin {
 		if (!this.syncOrchestrator.isRelevantVaultPath(path)) return;
 		this.syncOrchestrator.invalidatePath(path);
 		void this.queueRefreshOpenViews();
+		if (Platform.isMobile) {
+			this.pendingMobileMemoPaths.add(path);
+			void this.mobileMemoSettleRefreshScheduler?.queue();
+		}
 	}
 
 	private registerAttachmentEvents(): void {
-		const notify = (file: unknown) => { if (file instanceof TFile && isSupportedImagePath(file.path)) this.broadcastAttachmentChanges([file.path]); };
+		const notify = (file: unknown) => {
+			if (file instanceof TFile && isSupportedImagePath(file.path)) this.handleAttachmentFileChanges([file.path]);
+		};
 		this.registerEvent(this.app.vault.on("create", notify));
 		this.registerEvent(this.app.vault.on("modify", notify));
 		this.registerEvent(this.app.vault.on("delete", notify));
@@ -156,8 +185,36 @@ export default class KnomoPlugin extends Plugin {
 				isSupportedImagePath(oldPath) ? oldPath : null,
 				file instanceof TFile && isSupportedImagePath(file.path) ? file.path : null,
 			].filter((path): path is string => path !== null);
-			if (paths.length > 0) this.broadcastAttachmentChanges(paths);
+			if (paths.length > 0) this.handleAttachmentFileChanges(paths);
 		}));
+		this.registerEvent(this.app.metadataCache.on("resolved", () => {
+			for (const leaf of this.app.workspace.getLeavesOfType(KNOMO_VIEW_TYPE)) {
+				if (leaf.view instanceof KnomoView) leaf.view.handleImageMetadataResolved();
+			}
+		}));
+	}
+
+	/** Invalidates image state immediately and schedules one mobile retry after synced bytes settle. */
+	private handleAttachmentFileChanges(paths: readonly string[]): void {
+		this.broadcastAttachmentChanges(paths);
+		if (!Platform.isMobile) return;
+		for (const path of paths) this.pendingMobileAttachmentPaths.add(path);
+		void this.mobileAttachmentSettleRefreshScheduler?.queue();
+	}
+
+	/** Re-reads mobile memo files after sync has had time to finish replacing their contents. */
+	private async refreshSettledMobileMemoPaths(): Promise<void> {
+		const paths = [...this.pendingMobileMemoPaths];
+		this.pendingMobileMemoPaths.clear();
+		for (const path of paths) this.syncOrchestrator.invalidatePath(path);
+		if (paths.length > 0) await this.refreshOpenViews();
+	}
+
+	/** Retries mobile image rendering after attachment creation and download finish racing. */
+	private async refreshSettledMobileAttachmentPaths(): Promise<void> {
+		const paths = [...this.pendingMobileAttachmentPaths];
+		this.pendingMobileAttachmentPaths.clear();
+		if (paths.length > 0) this.broadcastAttachmentChanges(paths);
 	}
 
 	private async queueRefreshOpenViews(): Promise<void> { await this.viewRefreshScheduler?.queue(); }

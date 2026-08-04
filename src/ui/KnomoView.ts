@@ -1082,6 +1082,9 @@ export class KnomoView extends ItemView {
 	}
 
 	async refresh(forceRebuild = false): Promise<void> {
+		if (forceRebuild) {
+			this.imageResourceCache.clear();
+		}
 		const timeBuoyEnabled = this.settingsService.getSettings().timeBuoyEnabled;
 		if (this.renderedTimeBuoyEnabled !== timeBuoyEnabled) {
 			if (!timeBuoyEnabled && this.activeNav === "time-buoy") {
@@ -1204,6 +1207,17 @@ export class KnomoView extends ItemView {
 			if (memo !== null) {
 				this.refreshVisibleMemoImages(memo);
 			}
+		}
+	}
+
+	/** Retries only previews that were unresolved before Obsidian refreshed link metadata. */
+	handleImageMetadataResolved(): void {
+		const missingPaths = this.imageResourceCache.invalidateMissing();
+		if (missingPaths.length === 0) return;
+		const affectedMemoIds = this.memoCardPreviewCache.findImagePathMemoIds(missingPaths);
+		for (const memoId of affectedMemoIds) {
+			const memo = this.findMemoById(memoId);
+			if (memo !== null) this.refreshVisibleMemoImages(memo);
 		}
 	}
 
