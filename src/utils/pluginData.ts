@@ -1,12 +1,8 @@
-import type { KnomoSettings } from "../types/settings";
 import type { MemoReviewState, MemoReviewStateMap } from "../types/review";
 import type { ShuffleDayHistoryEntry } from "./shuffleDay";
 import { isRecord } from "./object";
 import { normalizeShuffleDayHistory } from "./shuffleDay";
 
-const SETTINGS_KEY = "settings";
-const RANDOM_REUNION_REVIEW_STATES_KEY = "randomReunionReviewStates";
-const SHUFFLE_DAY_HISTORY_KEY = "shuffleDayHistory";
 const MAINTENANCE_DIAGNOSTIC_KEY = "maintenanceDiagnostic";
 
 export type MaintenanceDiagnosticTask = "startup_scan" | "file_watch" | "repair";
@@ -26,19 +22,6 @@ export interface MaintenanceDiagnostic {
 	failed: number | null;
 }
 
-export function extractSettingsData(savedData: unknown): unknown {
-	if (isRecord(savedData) && isRecord(savedData[SETTINGS_KEY])) {
-		return savedData[SETTINGS_KEY];
-	}
-	return savedData;
-}
-
-export function buildPluginDataWithSettings(savedData: unknown, settings: KnomoSettings): Record<string, unknown> {
-	const nextData = getStructuredPluginData(savedData);
-	nextData[SETTINGS_KEY] = settings;
-	return nextData;
-}
-
 export function extractMaintenanceDiagnostic(savedData: unknown): MaintenanceDiagnostic | null {
 	if (!isRecord(savedData)) {
 		return null;
@@ -50,18 +33,17 @@ export function buildPluginDataWithMaintenanceDiagnostic(
 	savedData: unknown,
 	diagnostic: MaintenanceDiagnostic,
 ): Record<string, unknown> {
-	const nextData = getStructuredPluginData(savedData);
+	const nextData = Object.assign({}, isRecord(savedData) ? savedData : {});
 	nextData[MAINTENANCE_DIAGNOSTIC_KEY] = diagnostic;
 	return nextData;
 }
 
-export function extractRandomReunionReviewStates(savedData: unknown): MemoReviewStateMap {
-	if (!isRecord(savedData) || !isRecord(savedData[RANDOM_REUNION_REVIEW_STATES_KEY])) {
-		return {};
-	}
+/** Normalizes the standalone shared random-reunion state file. */
+export function normalizeRandomReunionReviewStates(value: unknown): MemoReviewStateMap {
+	if (!isRecord(value)) return {};
 	const states: MemoReviewStateMap = {};
-	for (const [memoId, value] of Object.entries(savedData[RANDOM_REUNION_REVIEW_STATES_KEY])) {
-		const state = normalizeReviewState(memoId, value);
+	for (const [memoId, stateValue] of Object.entries(value)) {
+		const state = normalizeReviewState(memoId, stateValue);
 		if (state !== null) {
 			states[memoId] = state;
 		}
@@ -69,48 +51,11 @@ export function extractRandomReunionReviewStates(savedData: unknown): MemoReview
 	return states;
 }
 
-export function buildPluginDataWithRandomReunionReviewStates(
-	savedData: unknown,
-	states: MemoReviewStateMap,
-): Record<string, unknown> {
-	const nextData = getStructuredPluginData(savedData);
-	nextData[RANDOM_REUNION_REVIEW_STATES_KEY] = states;
-	return nextData;
-}
-
-export function extractShuffleDayHistory(savedData: unknown): ShuffleDayHistoryEntry[] {
-	if (!isRecord(savedData) || !Array.isArray(savedData[SHUFFLE_DAY_HISTORY_KEY])) {
-		return [];
-	}
-	return normalizeShuffleDayHistory(savedData[SHUFFLE_DAY_HISTORY_KEY].map(normalizeShuffleDayHistoryEntry)
+/** Normalizes the standalone shared shuffle-day history file. */
+export function normalizeSharedShuffleDayHistory(value: unknown): ShuffleDayHistoryEntry[] {
+	if (!Array.isArray(value)) return [];
+	return normalizeShuffleDayHistory(value.map(normalizeShuffleDayHistoryEntry)
 		.filter((entry): entry is ShuffleDayHistoryEntry => entry !== null));
-}
-
-export function buildPluginDataWithShuffleDayHistory(
-	savedData: unknown,
-	history: ShuffleDayHistoryEntry[],
-): Record<string, unknown> {
-	const nextData = getStructuredPluginData(savedData);
-	nextData[SHUFFLE_DAY_HISTORY_KEY] = normalizeShuffleDayHistory(history);
-	return nextData;
-}
-
-function getStructuredPluginData(savedData: unknown): Record<string, unknown> {
-	if (isStructuredPluginData(savedData)) {
-		return Object.assign({}, savedData);
-	}
-	return {
-		[SETTINGS_KEY]: extractSettingsData(savedData),
-	};
-}
-
-function isStructuredPluginData(value: unknown): value is Record<string, unknown> {
-	return isRecord(value) && (
-		SETTINGS_KEY in value ||
-		RANDOM_REUNION_REVIEW_STATES_KEY in value ||
-		SHUFFLE_DAY_HISTORY_KEY in value ||
-		MAINTENANCE_DIAGNOSTIC_KEY in value
-	);
 }
 
 function normalizeMaintenanceDiagnostic(value: unknown): MaintenanceDiagnostic | null {

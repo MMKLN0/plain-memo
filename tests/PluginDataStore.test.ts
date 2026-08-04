@@ -1,21 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { Plugin } from "obsidian";
 
-import { PluginDataStore } from "../src/services/PluginDataStore";
+import { RANDOM_REUNION_STATE_PATH, SHUFFLE_DAY_STATE_PATH } from "../src/constants";
 import { RandomReunionService } from "../src/services/RandomReunionService";
 import { ShuffleDayService } from "../src/services/ShuffleDayService";
+import type { VaultJsonMutation, VaultJsonStore } from "../src/services/VaultJsonStore";
 import type { MemoRecord } from "../src/types/memo";
 import { isRecord } from "../src/utils/object";
 import {
-	extractRandomReunionReviewStates,
-	extractShuffleDayHistory,
+	normalizeRandomReunionReviewStates,
+	normalizeSharedShuffleDayHistory,
 } from "../src/utils/pluginData";
 
 test("concurrent review mutations preserve every update", async () => {
-	const harness = createPluginHarness({});
-	const store = new PluginDataStore(harness.plugin);
-	const service = new RandomReunionService(store);
+	const harness = createVaultHarness();
+	const service = new RandomReunionService(harness.store);
 
 	await Promise.all([
 		service.markRandomReunionReviewed("memo-a"),
@@ -23,16 +22,15 @@ test("concurrent review mutations preserve every update", async () => {
 		service.markRandomReunionReviewed("memo-b"),
 	]);
 
-	const states = extractRandomReunionReviewStates(await store.read());
+	const states = normalizeRandomReunionReviewStates(await harness.store.read(RANDOM_REUNION_STATE_PATH));
 	assert.equal(states["memo-a"]?.reviewCount, 2);
 	assert.equal(states["memo-b"]?.reviewCount, 1);
 });
 
-test("shared plugin data store preserves review state and shuffle history", async () => {
-	const harness = createPluginHarness({});
-	const store = new PluginDataStore(harness.plugin);
-	const randomReunionService = new RandomReunionService(store);
-	const shuffleDayService = new ShuffleDayService(store);
+test("separate Vault files preserve review state and shuffle history", async () => {
+	const harness = createVaultHarness();
+	const randomReunionService = new RandomReunionService(harness.store);
+	const shuffleDayService = new ShuffleDayService(harness.store);
 
 	const [, shuffleResult] = await Promise.all([
 		randomReunionService.markRandomReunionReviewed("memo-a"),
@@ -40,53 +38,58 @@ test("shared plugin data store preserves review state and shuffle history", asyn
 	]);
 
 	assert.equal(shuffleResult.status, "ready");
-	const savedData = await store.read();
-	assert.equal(extractRandomReunionReviewStates(savedData)["memo-a"]?.reviewCount, 1);
-	assert.equal(extractShuffleDayHistory(savedData).length, 1);
+	assert.equal(normalizeRandomReunionReviewStates(await harness.store.read(RANDOM_REUNION_STATE_PATH))["memo-a"]?.reviewCount, 1);
+	assert.equal(normalizeSharedShuffleDayHistory(await harness.store.read(SHUFFLE_DAY_STATE_PATH)).length, 1);
 });
 
-test("failed plugin data save releases the next mutation", async () => {
-	const harness = createPluginHarness({});
-	const store = new PluginDataStore(harness.plugin);
+test("failed Vault data save releases the next mutation", async () => {
+	const harness = createVaultHarness();
 	harness.failNextSave();
 
 	await assert.rejects(
-		store.mutate((savedData) => ({
+		harness.store.mutate("test.json", (savedData) => ({
 			nextData: Object.assign({}, isRecord(savedData) ? savedData : {}, { failed: true }),
 			result: undefined,
 		})),
 		/save failed/,
 	);
-	await store.mutate((savedData) => ({
+	await harness.store.mutate("test.json", (savedData) => ({
 		nextData: Object.assign({}, isRecord(savedData) ? savedData : {}, { saved: true }),
 		result: undefined,
 	}));
 
-	const savedData = await store.read();
+	const savedData = await harness.store.read("test.json");
 	assert.equal(isRecord(savedData) ? savedData.saved : undefined, true);
 });
 
-function createPluginHarness(initialData: unknown): {
-	plugin: Plugin;
-	failNextSave: () => void;
-} {
-	let data = cloneData(initialData);
+function createVaultHarness(): { store: VaultJsonStore; failNextSave: () => void } {
+	const files = new Map<string, unknown>();
 	let shouldFailNextSave = false;
-	const plugin = {
-		loadData: async () => cloneData(data),
-		saveData: async (nextData: unknown) => {
-			if (shouldFailNextSave) {
-				shouldFailNextSave = false;
-				throw new Error("save failed");
+	let queue: Promise<void> = Promise.resolve();
+	const store = {
+		read: async (path: string) => cloneData(files.get(path) ?? null),
+		mutate: async <T>(path: string, mutation: (data: unknown | null) => VaultJsonMutation<T> | Promise<VaultJsonMutation<T>>) => {
+			const previous = queue;
+			let release: () => void = () => undefined;
+			queue = new Promise<void>((resolve) => { release = resolve; });
+			await previous;
+			try {
+				const result = await mutation(cloneData(files.get(path) ?? null));
+				if (result.nextData === null) return result.result;
+				if (shouldFailNextSave) {
+					shouldFailNextSave = false;
+					throw new Error("save failed");
+				}
+				files.set(path, cloneData(result.nextData));
+				return result.result;
+			} finally {
+				release();
 			}
-			data = cloneData(nextData);
 		},
-	} as Plugin;
+	} as VaultJsonStore;
 	return {
-		plugin,
-		failNextSave: () => {
-			shouldFailNextSave = true;
-		},
+		store,
+		failNextSave: () => { shouldFailNextSave = true; },
 	};
 }
 

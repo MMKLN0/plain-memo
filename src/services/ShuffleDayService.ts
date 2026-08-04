@@ -1,25 +1,23 @@
 import type { MemoRecord } from "../types/memo";
-import {
-	buildPluginDataWithShuffleDayHistory,
-	extractShuffleDayHistory,
-} from "../utils/pluginData";
+import { SHUFFLE_DAY_STATE_PATH } from "../constants";
+import { normalizeSharedShuffleDayHistory } from "../utils/pluginData";
 import {
 	selectShuffleDay,
 	type ShuffleDaySelectionResult,
 } from "../utils/shuffleDay";
-import type { PluginDataStore } from "./PluginDataStore";
+import type { VaultJsonStore } from "./VaultJsonStore";
 
 export class ShuffleDayService {
-	constructor(private readonly pluginDataStore: PluginDataStore) {}
+	constructor(private readonly vaultDataStore: VaultJsonStore) {}
 
 	async selectShuffleDay(memos: MemoRecord[]): Promise<ShuffleDaySelectionResult> {
-		return this.pluginDataStore.mutate((savedData) => {
+		return this.vaultDataStore.mutate(SHUFFLE_DAY_STATE_PATH, (savedData) => {
 			const result = selectShuffleDay(memos, {
-				history: extractShuffleDayHistory(savedData),
+				history: normalizeSharedShuffleDayHistory(savedData),
 			});
 			return {
 				nextData: result.status === "ready"
-					? buildPluginDataWithShuffleDayHistory(savedData, result.nextHistory)
+					? result.nextHistory
 					: null,
 				result,
 			};

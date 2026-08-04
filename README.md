@@ -32,7 +32,7 @@ This is an intentional storage-model change. Existing upstream Daily Notes and m
 - Render Markdown lists, tasks, quotes, images, and links.
 - Collapse long cards after a configurable line threshold.
 - Pin a configurable number of important memos above the regular card feed, with a collapsible pinned area.
-- Refresh pinned-card state automatically after a sync provider updates PlainMemo's plugin data, without requiring an Obsidian restart.
+- Store pins, scan folders, and other memo-related state under `PlainMemo/data` in the Vault and refresh synchronized state without restarting Obsidian.
 - Prepare existing Markdown files by adding recognizable creation-time filename suffixes without rewriting their content.
 - Import Flomo HTML or ZIP exports while preserving memo timestamps, tags, web links, and optional attachments.
 - Use optional Time buoy reminders from `@YYYY-MM-DD` in the memo body.
@@ -81,12 +81,12 @@ BRAT installs and updates PlainMemo from the latest stable GitHub Release.
 
 Open PlainMemo settings and find the standalone memo file section:
 
-1. Fresh installs use `plain_memo` as both the initial scan folder and default save folder. It is created when you save the first memo.
+1. On startup, PlainMemo creates `PlainMemo`, `PlainMemo/data`, and `PlainMemo/picture`. `PlainMemo` is the initial scan folder and default save folder.
 2. Add, remove, or change scan folders relative to the Vault root, for example `Memos` or `Inbox/Cards`.
 3. Choose a default save folder. New memos are written there, and the folder is automatically included in the scan scope.
 4. Optionally adjust the long-card threshold (minimum 6 lines), mobile compact layout, and Time buoy reminders.
 
-No personal paths are preconfigured. PlainMemo only treats files inside the configured scan folders as memos.
+No personal paths are preconfigured. PlainMemo only treats files inside the configured scan folders as memos and always excludes `PlainMemo/data` and `PlainMemo/picture`.
 
 ## Import existing Markdown files
 
@@ -113,7 +113,9 @@ Each Flomo memo becomes a standalone PlainMemo Markdown file. The original body,
 
 ## Data and privacy
 
-Every memo is an ordinary Markdown file in your Vault. PlainMemo requires no account, relies on no external service, and does not actively upload note content. Plugin settings, the pinned-memo list, and other UI state are stored in PlainMemo's plugin `data.json`; memo content remains in its own `.md` file.
+Every memo is an ordinary Markdown file in your Vault. PlainMemo requires no account, relies on no external service, and does not actively upload note content. Scan folders, collapse thresholds, pin markers, random-review records, and shuffle-day history are stored under `PlainMemo/data` so they can synchronize with the Vault. Each pinned memo uses a separate state file to reduce cross-device overwrite conflicts.
+
+Device UI state, including whether the pinned section is collapsed, desktop sidebar geometry, and mobile layout preferences, remains in the local plugin `data.json`. The current version does not migrate settings or pins from older plugin `data.json` formats; arrange existing memo files and configure the new version manually.
 
 ## Development
 

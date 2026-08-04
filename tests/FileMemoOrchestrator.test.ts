@@ -21,6 +21,17 @@ test("standalone memo store scans valid non-empty files and reuses unchanged rea
 	assert.equal(harness.readCount, readsAfterFirstScan);
 });
 
+test("PlainMemo data and picture directories are never scanned as cards", async () => {
+	const harness = await createHarness([
+		["PlainMemo/Visible_2607250855.md", "Visible"],
+		["PlainMemo/data/Hidden_2607250856.md", "Hidden"],
+		["PlainMemo/picture/Image_2607250857.md", "Image"],
+	]);
+	harness.settings.memoFolders = ["PlainMemo"];
+
+	assert.deepEqual((await harness.store.listMemos()).map((memo) => memo.id), ["PlainMemo/Visible_2607250855.md"]);
+});
+
 test("standalone memo load plans sort by filename time and apply stable collision ordering", async () => {
 	const harness = await createHarness([
 		["Flomo/Beta_2607250855.md", "Beta"],
@@ -152,6 +163,7 @@ async function createHarness(initialFiles: Array<[string, string]>) {
 	return {
 		store,
 		contents,
+		settings,
 		get readCount() { return readCount; },
 	};
 }

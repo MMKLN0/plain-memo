@@ -18,6 +18,7 @@ import { formatMemoFilenameTimestamp, parseMemoFilenameTimestamp, toSafeMemoFile
 import { hashMemoContent, hashText } from "../utils/hash";
 import { restoreMemoFrontmatter } from "../utils/memoFrontmatter";
 import { extractTimeBuoyDates, getTimeBuoyRevision } from "../utils/timeBuoyParser";
+import { PLAIN_MEMO_DATA_FOLDER, PLAIN_MEMO_PICTURE_FOLDER } from "../constants";
 
 type GetSettings = () => KnomoSettings;
 
@@ -82,6 +83,7 @@ export class FileMemoOrchestrator {
 
 	isRelevantVaultPath(path: string): boolean {
 		if (!path.toLowerCase().endsWith(".md")) return false;
+		if (isReservedPlainMemoPath(path)) return false;
 		return this.getScanFolders().some((folder) => path === folder || path.startsWith(`${folder}/`));
 	}
 
@@ -275,6 +277,7 @@ export class FileMemoOrchestrator {
 
 	private isActiveMemoFile(file: TFile): boolean {
 		return !this.isManagedTrashPath(file.path)
+			&& !isReservedPlainMemoPath(file.path)
 			&& this.getScanFolders().some((folder) => file.path.startsWith(`${folder}/`))
 			&& parseMemoFilenameTimestamp(file.name) !== null;
 	}
@@ -471,4 +474,12 @@ function parseCollisionOrder(name: string): { stem: string; order: number } {
 	return match === null
 		? { stem: name.toLowerCase(), order: 1 }
 		: { stem: match[1].toLowerCase(), order: match[2] === undefined ? 1 : Number(match[2]) };
+}
+
+/** Excludes PlainMemo state and image directories from every memo scan scope. */
+export function isReservedPlainMemoPath(path: string): boolean {
+	return path === PLAIN_MEMO_DATA_FOLDER
+		|| path.startsWith(`${PLAIN_MEMO_DATA_FOLDER}/`)
+		|| path === PLAIN_MEMO_PICTURE_FOLDER
+		|| path.startsWith(`${PLAIN_MEMO_PICTURE_FOLDER}/`);
 }

@@ -32,7 +32,7 @@ PlainMemo 的目标是让每张卡片都是一个可独立阅读、可用 Obsidi
 - 渲染 Markdown 列表、任务、引用、图片和链接；
 - 长卡片可按设置的行数阈值折叠；
 - 可将重要 memo 置顶到普通卡片流上方，支持设置数量上限并折叠置顶区域；
-- 同步服务更新 PlainMemo 插件数据后，置顶状态会自动刷新，无需重启 Obsidian；
+- 将置顶、扫描目录和其他笔记相关状态保存在 Vault 的 `PlainMemo/data` 中，同步后无需重启 Obsidian 即可刷新；
 - 为已有 Markdown 文件补充可识别的创建时间后缀，不改写正文；
 - 导入 Flomo HTML 或 ZIP，并保留时间、标签、网页链接和可选附件；
 - 可选的时光浮标：识别正文中的 `@YYYY-MM-DD`；
@@ -81,12 +81,12 @@ BRAT 会从 GitHub 最新的稳定 Release 安装和更新 PlainMemo。
 
 打开 PlainMemo 设置，找到独立 memo 文件设置区域：
 
-1. 全新安装会以 `plain_memo` 作为初始扫描文件夹和默认新建位置，保存第一条 memo 时会自动创建该文件夹。
+1. 插件启动时会创建 `PlainMemo`、`PlainMemo/data` 和 `PlainMemo/picture`，并以 `PlainMemo` 作为初始扫描文件夹和默认新建位置。
 2. 可添加、删除或修改一个或多个扫描文件夹，路径相对于 Vault 根目录，例如 `Memos` 或 `收集箱/卡片`。
 3. 选择“默认新建位置”。新 memo 会写入这里，该文件夹也会自动加入扫描范围。
 4. 按需调整长卡片折叠阈值（最小 6 行）、移动端紧凑布局和时光浮标。
 
-默认不预置任何个人路径。PlainMemo 只会把已配置扫描文件夹内的文件视为 memo。
+默认不预置任何个人路径。PlainMemo 只会把已配置扫描文件夹内的文件视为 memo，并始终排除 `PlainMemo/data` 和 `PlainMemo/picture`。
 
 ## 导入已有 Markdown 文件
 
@@ -113,7 +113,9 @@ PlainMemo 设置中还提供“导入 Flomo 数据”：
 
 ## 数据与隐私
 
-所有 memo 都是 Vault 内的普通 Markdown 文件。PlainMemo 不要求账号、不依赖外部服务器，也不会主动上传笔记内容。插件设置、置顶笔记列表及其他界面状态保存在 PlainMemo 的插件 `data.json` 中；笔记正文仍保存在各自的 `.md` 文件中。
+所有 memo 都是 Vault 内的普通 Markdown 文件。PlainMemo 不要求账号、不依赖外部服务器，也不会主动上传笔记内容。扫描目录、折叠阈值、置顶标记、随机回顾记录和往日漫游历史保存在 `PlainMemo/data` 中，可以和 Vault 一起同步。每条置顶笔记使用一个独立状态文件，减少多设备同时修改时相互覆盖的风险。
+
+置顶区折叠状态、桌面侧栏宽度和移动端布局等设备界面状态仍保存在本机插件 `data.json` 中，不参与 PlainMemo 的共享状态同步。当前版本不迁移旧版 `data.json` 中的设置和置顶列表；升级前请自行整理笔记位置，并在新版本中重新设置。
 
 ## 开发
 

@@ -1,7 +1,13 @@
-import { Platform, Plugin, TFile } from "obsidian";
+import { Notice, Platform, Plugin, TFile } from "obsidian";
 import type { WorkspaceLeaf } from "obsidian";
 
-import { KNOMO_VIEW_TYPE } from "./constants";
+import {
+	KNOMO_VIEW_TYPE,
+	PLAIN_MEMO_DATA_FOLDER,
+	PLAIN_MEMO_FOLDER,
+	PLAIN_MEMO_PICTURE_FOLDER,
+	SHARED_SETTINGS_PATH,
+} from "./constants";
 import { KNOMO_LOGO_ICON, registerKnomoIcons } from "./icons";
 import { t } from "./i18n";
 import { AttachmentService } from "./services/AttachmentService";
@@ -13,6 +19,7 @@ import { ReferenceService } from "./services/ReferenceService";
 import { SettingsService } from "./services/SettingsService";
 import { ShuffleDayService } from "./services/ShuffleDayService";
 import { ViewRefreshScheduler } from "./services/ViewRefreshScheduler";
+import { VaultJsonStore } from "./services/VaultJsonStore";
 import type { MemoMutation } from "./types/memo";
 import { KnomoSettingTab } from "./ui/KnomoSettingTab";
 import { KnomoView } from "./ui/KnomoView";
@@ -33,8 +40,17 @@ export default class KnomoPlugin extends Plugin {
 	async onload(): Promise<void> {
 		registerKnomoIcons();
 		const dataStore = new PluginDataStore(this);
-		this.pinnedMemoService = new PinnedMemoService(dataStore);
-		this.settingsService = new SettingsService(this, dataStore);
+		const vaultDataStore = new VaultJsonStore(this.app);
+		try {
+			await vaultDataStore.ensureFolder(PLAIN_MEMO_FOLDER);
+			await vaultDataStore.ensureFolder(PLAIN_MEMO_DATA_FOLDER);
+			await vaultDataStore.ensureFolder(PLAIN_MEMO_PICTURE_FOLDER);
+		} catch (error) {
+			new Notice(`PlainMemo could not prepare its Vault folders: ${error instanceof Error ? error.message : String(error)}`);
+			throw error;
+		}
+		this.pinnedMemoService = new PinnedMemoService(vaultDataStore, dataStore);
+		this.settingsService = new SettingsService(vaultDataStore, dataStore);
 		try {
 			await this.settingsService.loadSettings();
 		} catch {
@@ -52,7 +68,7 @@ export default class KnomoPlugin extends Plugin {
 
 		this.registerView(KNOMO_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KnomoView(
 			leaf, this.settingsService, this.syncOrchestrator, referenceService,
-			new RandomReunionService(dataStore), new ShuffleDayService(dataStore), attachmentService, this.pinnedMemoService,
+			new RandomReunionService(vaultDataStore), new ShuffleDayService(vaultDataStore), attachmentService, this.pinnedMemoService,
 			(mutation, source) => this.broadcastMemoMutation(mutation, source),
 			() => this.refreshOpenViews(), () => this.manualRefresh(),
 		));
@@ -66,7 +82,7 @@ export default class KnomoPlugin extends Plugin {
 		));
 		this.registerMemoFileEvents();
 		this.registerAttachmentEvents();
-		this.registerPinnedMemoSyncRefresh();
+		this.registerSharedStateRefresh();
 		this.registerHoverLinkSource(KNOMO_VIEW_TYPE, { display: "PlainMemo", defaultMod: false });
 		this.addRibbonIcon(KNOMO_LOGO_ICON, t("app.openKnomo"), () => { void this.activateView(); });
 		this.addCommand({ id: "open-view", name: t("app.openKnomo"), callback: () => { void this.activateView(); } });
@@ -139,12 +155,12 @@ export default class KnomoPlugin extends Plugin {
 		}));
 	}
 	private async manualRefresh() {
-		await this.reloadPinnedMemosFromStorage();
+		await this.reloadSharedStateFromStorage();
 		this.syncOrchestrator.invalidateAll();
 		await this.refreshOpenViews(true);
 	}
-	private registerPinnedMemoSyncRefresh(): void {
-		const refresh = (): void => { void this.reloadPinnedMemosFromStorage(); };
+	private registerSharedStateRefresh(): void {
+		const refresh = (): void => { void this.reloadSharedStateFromStorage(); };
 		this.registerDomEvent(this.app.workspace.containerEl.win, "focus", refresh);
 		this.registerDomEvent(this.app.workspace.containerEl.doc, "visibilitychange", () => {
 			if (this.app.workspace.containerEl.doc.visibilityState === "visible") refresh();
@@ -155,13 +171,37 @@ export default class KnomoPlugin extends Plugin {
 				&& this.app.workspace.getLeavesOfType(KNOMO_VIEW_TYPE).length > 0
 			) refresh();
 		}, PINNED_MEMO_SYNC_POLL_MS));
+		const refreshSharedFile = (path: string): void => {
+			if (path === SHARED_SETTINGS_PATH || this.pinnedMemoService.isStatePath(path)) refresh();
+		};
+		this.registerEvent(this.app.vault.on("create", (file) => { refreshSharedFile(file.path); }));
+		this.registerEvent(this.app.vault.on("modify", (file) => { refreshSharedFile(file.path); }));
+		this.registerEvent(this.app.vault.on("delete", (file) => { refreshSharedFile(file.path); }));
+		this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+			refreshSharedFile(oldPath);
+			refreshSharedFile(file.path);
+		}));
 	}
-	private async reloadPinnedMemosFromStorage(): Promise<boolean> {
-		if (!await this.pinnedMemoService.reloadIfChanged()) return false;
-		for (const leaf of this.app.workspace.getLeavesOfType(KNOMO_VIEW_TYPE)) {
-			if (leaf.view instanceof KnomoView) leaf.view.refreshPinnedMemoPresentation();
+	private async reloadSharedStateFromStorage(): Promise<boolean> {
+		try {
+			const [settingsChanged, pinnedChanged] = await Promise.all([
+				this.settingsService.reloadIfChanged(),
+				this.pinnedMemoService.reloadIfChanged(),
+			]);
+			if (settingsChanged) {
+				this.syncOrchestrator.invalidateAll();
+				await this.refreshOpenViews(true);
+				return true;
+			}
+			if (!pinnedChanged) return false;
+			for (const leaf of this.app.workspace.getLeavesOfType(KNOMO_VIEW_TYPE)) {
+				if (leaf.view instanceof KnomoView) leaf.view.refreshPinnedMemoPresentation();
+			}
+			return true;
+		} catch (error) {
+			console.error("PlainMemo failed to reload synchronized state", error);
+			return false;
 		}
-		return true;
 	}
 	private broadcastMemoMutation(mutation: MemoMutation, source: KnomoView): void {
 		for (const leaf of this.app.workspace.getLeavesOfType(KNOMO_VIEW_TYPE)) if (leaf.view instanceof KnomoView && leaf.view !== source) leaf.view.applyMemoMutation(mutation);

@@ -1563,7 +1563,6 @@ export class KnomoView extends ItemView {
 				const page = await this.loadMobileMemoPage(plan, 0, MOBILE_INITIAL_MEMO_COUNT);
 				this.memos = page.memos;
 				const pinned = await this.syncOrchestrator.loadMemosByPath(this.pinnedMemos.getSnapshot().paths);
-				await this.pinnedMemos.retainExistingPaths(pinned.map((memo) => memo.id));
 				this.mergeLoadedMemos(pinned);
 				loadedMemoCount = page.nextOffset;
 			}
@@ -1632,7 +1631,6 @@ export class KnomoView extends ItemView {
 				return;
 			}
 			this.memos = firstPage.memos;
-			await this.pinnedMemos.retainExistingPaths(pinned.map((memo) => memo.id));
 			this.mergeLoadedMemos(pinned);
 			this.invalidateRecordStats();
 			this.mobileMemoHydrator.setInitialLoadSuccess(plan, firstPage.nextOffset);
