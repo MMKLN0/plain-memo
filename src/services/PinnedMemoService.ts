@@ -8,6 +8,8 @@ import { isRecord } from "../utils/object";
 import type { PluginDataStore } from "./PluginDataStore";
 import type { VaultJsonStore } from "./VaultJsonStore";
 
+const UNPINNED_MARKER_RETENTION_MS = 15 * 24 * 60 * 60 * 1_000;
+
 interface PinnedMemoRecord {
 	path: string;
 	pinnedAt: string;
@@ -27,6 +29,7 @@ export class PinnedMemoService {
 	constructor(
 		private readonly vaultStore: VaultJsonStore,
 		private readonly localStore: PluginDataStore,
+		private readonly now: () => Date = () => new Date(),
 	) {}
 
 	/** Loads shared pin markers and local expansion state. */
@@ -55,7 +58,7 @@ export class PinnedMemoService {
 		if (this.isPinned(path)) return true;
 		if (this.snapshot.paths.length >= limit) return false;
 		const markerPath = await this.allocateMarkerPath(path);
-		const timestamp = new Date().toISOString();
+		const timestamp = this.now().toISOString();
 		const record: PinnedMemoRecord = { path, pinnedAt: timestamp, updatedAt: timestamp, pinned: true };
 		await this.vaultStore.write(markerPath, record);
 		this.snapshot = await this.readSnapshot();
@@ -67,7 +70,7 @@ export class PinnedMemoService {
 		for (const markerPath of await this.vaultStore.list(PINNED_MEMOS_FOLDER)) {
 			const record = parsePinnedMemoRecord(await this.vaultStore.read(markerPath));
 			if (record?.path === path && record.pinned) {
-				await this.vaultStore.write(markerPath, { ...record, updatedAt: new Date().toISOString(), pinned: false });
+				await this.vaultStore.write(markerPath, { ...record, updatedAt: this.now().toISOString(), pinned: false });
 			}
 		}
 		this.snapshot = await this.readSnapshot();
@@ -88,7 +91,7 @@ export class PinnedMemoService {
 		for (const markerPath of await this.vaultStore.list(PINNED_MEMOS_FOLDER)) {
 			const record = parsePinnedMemoRecord(await this.vaultStore.read(markerPath));
 			if (record?.path === oldPath) {
-				await this.vaultStore.write(markerPath, { ...record, path: nextPath, updatedAt: new Date().toISOString() });
+				await this.vaultStore.write(markerPath, { ...record, path: nextPath, updatedAt: this.now().toISOString() });
 			}
 		}
 		this.snapshot = await this.readSnapshot();
@@ -105,9 +108,22 @@ export class PinnedMemoService {
 	/** Reads all valid markers and the local expansion flag. */
 	private async readSnapshot(): Promise<PinnedMemoSnapshot> {
 		const records: PinnedMemoRecord[] = [];
+		const now = this.now().getTime();
 		for (const markerPath of await this.vaultStore.list(PINNED_MEMOS_FOLDER)) {
 			const record = parsePinnedMemoRecord(await this.vaultStore.read(markerPath));
-			if (record !== null) records.push(record);
+			if (record === null) continue;
+			if (isExpiredUnpinnedMarker(record, now)) {
+				const deleted = await this.vaultStore.deleteIf(markerPath, (latest) => {
+					const latestRecord = parsePinnedMemoRecord(latest);
+					return latestRecord !== null && isExpiredUnpinnedMarker(latestRecord, now);
+				});
+				if (!deleted) {
+					const latestRecord = parsePinnedMemoRecord(await this.vaultStore.read(markerPath));
+					if (latestRecord !== null) records.push(latestRecord);
+				}
+				continue;
+			}
+			records.push(record);
 		}
 		const latestByPath = new Map(records
 			.sort((left, right) => left.updatedAt.localeCompare(right.updatedAt) || left.path.localeCompare(right.path))
@@ -129,6 +145,13 @@ export class PinnedMemoService {
 			if (existing === null || existing.path === path) return candidate;
 		}
 	}
+}
+
+/** Tests whether an unpinned synchronization marker has exceeded its retention period. */
+function isExpiredUnpinnedMarker(record: PinnedMemoRecord, now: number): boolean {
+	if (record.pinned) return false;
+	const updatedAt = Date.parse(record.updatedAt);
+	return Number.isFinite(updatedAt) && now - updatedAt > UNPINNED_MARKER_RETENTION_MS;
 }
 
 /** Parses and validates one marker file. */

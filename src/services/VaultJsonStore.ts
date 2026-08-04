@@ -1,7 +1,7 @@
 import { normalizePath, TFile, TFolder } from "obsidian";
 import type { App } from "obsidian";
 
-import { ensureFolder, getParentFolderPath } from "../utils/vault";
+import { ensureFolder, getParentFolderPath, getVaultAdapterPathType } from "../utils/vault";
 
 export interface VaultJsonMutation<T> {
 	nextData: unknown | null;
@@ -28,7 +28,13 @@ export class VaultJsonStore {
 	/** Lists JSON files immediately below or below a Vault folder. */
 	async list(folder: string): Promise<string[]> {
 		await this.writeQueue;
-		const root = this.app.vault.getAbstractFileByPath(normalizePath(folder));
+		const normalizedFolder = normalizePath(folder);
+		try {
+			return (await collectAdapterJsonPaths(this.app, normalizedFolder)).sort();
+		} catch {
+			// Fall back to the indexed tree when an adapter cannot list this folder.
+		}
+		const root = this.app.vault.getAbstractFileByPath(normalizedFolder);
 		if (!(root instanceof TFolder)) return [];
 		return collectJsonPaths(root).sort();
 	}
@@ -50,11 +56,40 @@ export class VaultJsonStore {
 		await this.runWriteExclusive(() => this.writeNow(path, data));
 	}
 
+	/** Deletes a JSON file only when its latest stored value still matches a predicate. */
+	async deleteIf(
+		path: string,
+		predicate: (savedData: unknown | null) => boolean | Promise<boolean>,
+	): Promise<boolean> {
+		return this.runWriteExclusive(async () => {
+			if (!await predicate(await this.readNow(path))) return false;
+			await this.deleteNow(path);
+			return true;
+		});
+	}
+
 	/** Reads and parses a JSON file while holding the store queue. */
 	private async readNow(path: string): Promise<unknown | null> {
-		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
-		if (!(file instanceof TFile)) return null;
-		const text = await this.app.vault.cachedRead(file);
+		const normalizedPath = normalizePath(path);
+		const file = this.app.vault.getAbstractFileByPath(normalizedPath);
+		let text: string;
+		if (file instanceof TFile) {
+			try {
+				text = await this.app.vault.cachedRead(file);
+			} catch {
+				try {
+					text = await this.app.vault.adapter.read(normalizedPath);
+				} catch {
+					return null;
+				}
+			}
+		} else {
+			try {
+				text = await this.app.vault.adapter.read(normalizedPath);
+			} catch {
+				return null;
+			}
+		}
 		if (text.trim().length === 0) return null;
 		return JSON.parse(text) as unknown;
 	}
@@ -71,7 +106,35 @@ export class VaultJsonStore {
 			return;
 		}
 		if (existing !== null) throw new Error(`Path exists and is not a file: ${normalizedPath}`);
-		await this.app.vault.create(normalizedPath, text);
+		const adapterType = await getVaultAdapterPathType(this.app, normalizedPath);
+		if (adapterType === "file") {
+			await this.app.vault.adapter.write(normalizedPath, text);
+			return;
+		}
+		if (adapterType === "folder") throw new Error(`Path exists and is not a file: ${normalizedPath}`);
+		try {
+			await this.app.vault.create(normalizedPath, text);
+		} catch (error) {
+			if (await getVaultAdapterPathType(this.app, normalizedPath) === "file") {
+				await this.app.vault.adapter.write(normalizedPath, text);
+				return;
+			}
+			throw error;
+		}
+	}
+
+	/** Permanently removes one internal JSON state file from the underlying adapter. */
+	private async deleteNow(path: string): Promise<void> {
+		const normalizedPath = normalizePath(path);
+		const adapterType = await getVaultAdapterPathType(this.app, normalizedPath);
+		if (adapterType === null) return;
+		if (adapterType === "folder") throw new Error(`Path exists and is not a file: ${normalizedPath}`);
+		try {
+			await this.app.vault.adapter.remove(normalizedPath);
+		} catch (error) {
+			if (await getVaultAdapterPathType(this.app, normalizedPath) === null) return;
+			throw error;
+		}
 	}
 
 	/** Runs one write operation after all earlier writes finish. */
@@ -86,6 +149,14 @@ export class VaultJsonStore {
 			releaseQueue();
 		}
 	}
+}
+
+/** Lists JSON files from the underlying adapter before the Vault index catches up. */
+async function collectAdapterJsonPaths(app: App, folder: string): Promise<string[]> {
+	const listed = await app.vault.adapter.list(folder);
+	const paths = listed.files.filter((path) => path.toLowerCase().endsWith(".json"));
+	for (const childFolder of listed.folders) paths.push(...await collectAdapterJsonPaths(app, childFolder));
+	return paths;
 }
 
 /** Collects JSON files below one state directory without scanning the whole Vault. */

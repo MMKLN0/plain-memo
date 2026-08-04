@@ -26,9 +26,15 @@ import { KnomoView } from "./ui/KnomoView";
 import { MobileNavbarCompactController } from "./ui/MobileNavbarCompactController";
 
 const OPEN_VIEWS_REFRESH_DEBOUNCE_MS = 150;
-const PINNED_MEMO_SYNC_POLL_MS = 2_000;
+const DESKTOP_SHARED_STATE_POLL_MS = 2_000;
+const MOBILE_SHARED_STATE_POLL_MS = 1_000;
 
 export function getStartupDailyScanDays(isMobile: boolean): number { return isMobile ? 7 : 30; }
+
+/** Keeps mobile state polling alive when Android reports a stale visibility state. */
+export function shouldPollSharedState(isMobile: boolean, visibilityState: string, openViewCount: number): boolean {
+	return openViewCount > 0 && (isMobile || visibilityState === "visible");
+}
 
 /** PlainMemo interface backed by standalone Markdown memo files. */
 export default class KnomoPlugin extends Plugin {
@@ -166,11 +172,12 @@ export default class KnomoPlugin extends Plugin {
 			if (this.app.workspace.containerEl.doc.visibilityState === "visible") refresh();
 		});
 		this.registerInterval(this.app.workspace.containerEl.win.setInterval(() => {
-			if (
-				this.app.workspace.containerEl.doc.visibilityState === "visible"
-				&& this.app.workspace.getLeavesOfType(KNOMO_VIEW_TYPE).length > 0
-			) refresh();
-		}, PINNED_MEMO_SYNC_POLL_MS));
+			if (shouldPollSharedState(
+				Platform.isMobile,
+				this.app.workspace.containerEl.doc.visibilityState,
+				this.app.workspace.getLeavesOfType(KNOMO_VIEW_TYPE).length,
+			)) refresh();
+		}, Platform.isMobile ? MOBILE_SHARED_STATE_POLL_MS : DESKTOP_SHARED_STATE_POLL_MS));
 		const refreshSharedFile = (path: string): void => {
 			if (path === SHARED_SETTINGS_PATH || this.pinnedMemoService.isStatePath(path)) refresh();
 		};

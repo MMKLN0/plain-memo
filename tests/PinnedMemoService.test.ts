@@ -68,9 +68,68 @@ test("unpin removes only markers for the selected memo", async () => {
 	assert.equal(Object.values(records).find((record) => record.path === "Cards/a.md")?.pinned, false);
 });
 
+test("removes unpinned markers only after the fifteen-day retention period", async () => {
+	const now = new Date("2026-08-04T12:00:00.000Z");
+	const harness = createHarness();
+	harness.replaceShared(`${PINNED_MEMOS_FOLDER}/expired.json`, {
+		path: "Cards/expired.md",
+		pinnedAt: "2026-07-01T12:00:00.000Z",
+		updatedAt: "2026-07-20T11:59:59.999Z",
+		pinned: false,
+	});
+	harness.replaceShared(`${PINNED_MEMOS_FOLDER}/boundary.json`, {
+		path: "Cards/boundary.md",
+		pinnedAt: "2026-07-01T12:00:00.000Z",
+		updatedAt: "2026-07-20T12:00:00.000Z",
+		pinned: false,
+	});
+	harness.replaceShared(`${PINNED_MEMOS_FOLDER}/active.json`, {
+		path: "Cards/active.md",
+		pinnedAt: "2026-07-01T12:00:00.000Z",
+		updatedAt: "2026-07-01T12:00:00.000Z",
+		pinned: true,
+	});
+	const service = new PinnedMemoService(harness.vaultStore, harness.localStore, () => now);
+
+	await service.load();
+
+	assert.deepEqual(harness.sharedFiles(), [
+		`${PINNED_MEMOS_FOLDER}/active.json`,
+		`${PINNED_MEMOS_FOLDER}/boundary.json`,
+	]);
+	assert.deepEqual(service.getSnapshot().paths, ["Cards/active.md"]);
+});
+
+test("does not delete a marker that was repinned while cleanup was waiting", async () => {
+	const now = new Date("2026-08-04T12:00:00.000Z");
+	const harness = createHarness();
+	const markerPath = `${PINNED_MEMOS_FOLDER}/repinned.json`;
+	harness.replaceShared(markerPath, {
+		path: "Cards/a.md",
+		pinnedAt: "2026-07-01T12:00:00.000Z",
+		updatedAt: "2026-07-01T12:00:00.000Z",
+		pinned: false,
+	});
+	harness.beforeDeleteIf(() => {
+		harness.replaceShared(markerPath, {
+			path: "Cards/a.md",
+			pinnedAt: "2026-08-04T12:00:00.000Z",
+			updatedAt: "2026-08-04T12:00:00.000Z",
+			pinned: true,
+		});
+	});
+	const service = new PinnedMemoService(harness.vaultStore, harness.localStore, () => now);
+
+	await service.load();
+
+	assert.deepEqual(harness.sharedFiles(), [markerPath]);
+	assert.deepEqual(service.getSnapshot().paths, ["Cards/a.md"]);
+});
+
 function createHarness(initialLocalData: unknown = {}) {
 	let localData = structuredClone(initialLocalData);
 	const shared = new Map<string, unknown>();
+	let beforeDeleteIf: (() => void) | null = null;
 	const localStore = {
 		read: async () => structuredClone(localData),
 		mutate: async <T>(mutation: (savedData: unknown) => PluginDataMutation<T> | Promise<PluginDataMutation<T>>) => {
@@ -83,6 +142,12 @@ function createHarness(initialLocalData: unknown = {}) {
 		read: async (path: string) => structuredClone(shared.get(path) ?? null),
 		write: async (path: string, data: unknown) => { shared.set(path, structuredClone(data)); },
 		list: async (folder: string) => [...shared.keys()].filter((path) => path.startsWith(`${folder}/`)).sort(),
+		deleteIf: async (path: string, predicate: (savedData: unknown | null) => boolean | Promise<boolean>) => {
+			beforeDeleteIf?.();
+			beforeDeleteIf = null;
+			if (!await predicate(structuredClone(shared.get(path) ?? null))) return false;
+			return shared.delete(path);
+		},
 	} as VaultJsonStore;
 	return {
 		localStore,
@@ -91,5 +156,6 @@ function createHarness(initialLocalData: unknown = {}) {
 		sharedFiles: () => [...shared.keys()].sort(),
 		sharedData: () => Object.fromEntries([...shared.entries()].map(([path, data]) => [path, structuredClone(data)])),
 		replaceShared: (path: string, data: unknown) => { shared.set(path, structuredClone(data)); },
+		beforeDeleteIf: (callback: () => void) => { beforeDeleteIf = callback; },
 	};
 }
