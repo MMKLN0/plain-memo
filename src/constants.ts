@@ -1,7 +1,7 @@
 export const KNOMO_VIEW_TYPE = "plain-memo-view";
 export const KNOMO_VIEW_DISPLAY_TEXT = "PlainMemo";
 
-export const SETTINGS_VERSION = 3;
+export const SETTINGS_VERSION = 4;
 export const PLAIN_MEMO_FOLDER = "PlainMemo";
 export const PLAIN_MEMO_DATA_FOLDER = `${PLAIN_MEMO_FOLDER}/data`;
 export const PLAIN_MEMO_PICTURE_FOLDER = `${PLAIN_MEMO_FOLDER}/picture`;

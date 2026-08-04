@@ -1,5 +1,7 @@
 import type { App, TFile } from "obsidian";
 
+import { ManagedPictureService } from "./ManagedPictureService";
+
 export interface AttachmentRollbackFailure {
 	path: string;
 	error: unknown;
@@ -21,15 +23,20 @@ export class AttachmentBatchRollbackError extends Error {
 }
 
 export class AttachmentService {
-	constructor(private readonly app: App) {}
+	constructor(
+		private readonly app: App,
+		private readonly managedPictures = new ManagedPictureService(app),
+	) {}
 
 	async createImageEmbedLinks(sourcePath: string, files: readonly File[]): Promise<string[]> {
 		const links: string[] = [];
 		const createdAttachments: TFile[] = [];
 		try {
 			for (const file of files) {
-				const path = await this.app.fileManager.getAvailablePathForAttachment(file.name, sourcePath);
-				const attachment = await this.app.vault.createBinary(path, await file.arrayBuffer());
+				const attachment = await this.managedPictures.createBinary(
+					file.name,
+					new Uint8Array(await file.arrayBuffer()),
+				);
 				createdAttachments.push(attachment);
 				links.push(`!${this.app.fileManager.generateMarkdownLink(attachment, sourcePath)}`);
 			}

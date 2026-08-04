@@ -10,6 +10,7 @@ export interface KnomoSettings {
 	defaultMemoFolder?: string;
 	memoCollapseLineThreshold?: number;
 	pinnedMemoLimit?: number;
+	trashRetentionDays?: number;
 	timeBuoyEnabled: boolean;
 	mobileCompactMode: MobileCompactMode;
 	desktopSidebarWidth: number;

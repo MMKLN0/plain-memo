@@ -105,6 +105,18 @@ export class KnomoSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
+			.setName(t("settings.file.trashRetentionDays"))
+			.setDesc(t("settings.file.trashRetentionDaysDescription"))
+			.addText((text) => {
+				text.inputEl.type = "number";
+				text.inputEl.min = "1";
+				text.inputEl.step = "1";
+				text.setValue(String(current.trashRetentionDays ?? 30));
+				text.inputEl.addEventListener("blur", () => { void this.commitTrashRetentionDays(text.inputEl); });
+				text.inputEl.addEventListener("keydown", (event) => { if (event.key === "Enter") text.inputEl.blur(); });
+			});
+
+		new Setting(containerEl)
 			.setName(t("settings.file.mobileCompact"))
 			.addDropdown((dropdown) => dropdown.addOptions({
 				auto: t("settings.file.mobileAuto"),
@@ -216,6 +228,16 @@ export class KnomoSettingTab extends PluginSettingTab {
 		}
 		input.value = String(limit);
 		await this.settings.updateSettings({ pinnedMemoLimit: limit });
+		await this.afterSettingsChanged();
+	}
+
+	/** Saves the trash retention period and immediately applies a shorter retention window. */
+	private async commitTrashRetentionDays(input: HTMLInputElement): Promise<void> {
+		const parsed = Number(input.value);
+		const days = Math.max(1, Number.isFinite(parsed) ? Math.floor(parsed) : 30);
+		input.value = String(days);
+		await this.settings.updateSettings({ trashRetentionDays: days });
+		await this.store.purgeExpiredDeletedMemos();
 		await this.afterSettingsChanged();
 	}
 

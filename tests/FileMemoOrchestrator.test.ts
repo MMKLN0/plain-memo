@@ -93,6 +93,62 @@ test("standalone memo store creates, trashes, restores, and purges Markdown file
 	assert.equal((await harness.store.getDeletedMemoSummary()).count, 0);
 });
 
+test("editing a memo trashes only removed managed pictures without other references", async () => {
+	const harness = await createHarness([
+		["Flomo/Pictures_2607250855.md", "Body\n![[PlainMemo/picture/orphan.png]]\n![[PlainMemo/picture/shared.png]]"],
+		["Notes/shared.md", "[shared](PlainMemo/picture/shared.png)"],
+		["PlainMemo/picture/orphan.png", "orphan"],
+		["PlainMemo/picture/shared.png", "shared"],
+	]);
+	const memo = (await harness.store.listMemos())[0];
+
+	await harness.store.updateMemo(memo, "Body");
+
+	assert.equal(harness.hasFile("PlainMemo/picture/orphan.png"), false);
+	assert.equal(harness.hasFile("PlainMemo/picture/shared.png"), true);
+	assert.deepEqual(harness.trashedPaths, ["PlainMemo/picture/orphan.png"]);
+});
+
+test("soft deletion preserves managed pictures and permanent deletion cleans the last reference", async () => {
+	const harness = await createHarness([
+		["Flomo/Pictures_2607250855.md", "Body\n![[PlainMemo/picture/photo.png]]"],
+		["PlainMemo/picture/photo.png", "photo"],
+	]);
+	const memo = (await harness.store.listMemos())[0];
+
+	const deleted = await harness.store.deleteMemo(memo);
+	assert.equal(harness.hasFile("PlainMemo/picture/photo.png"), true);
+
+	await harness.store.purgeDeletedMemoRecord(deleted);
+
+	assert.equal(harness.hasFile("PlainMemo/picture/photo.png"), false);
+	assert.equal(harness.trashedPaths.includes("PlainMemo/picture/photo.png"), true);
+});
+
+test("automatic trash cleanup purges only expired memos and unreferenced managed pictures", async () => {
+	const harness = await createHarness([
+		["Flomo/_knomo-trash/Flomo/Old_2607250855.md", "Old\n![[PlainMemo/picture/orphan.png]]\n![[PlainMemo/picture/shared.png]]"],
+		["Flomo/_knomo-trash/Flomo/Recent_2607250856.md", "Recent\n![[PlainMemo/picture/recent.png]]"],
+		["Notes/shared.md", "[shared](PlainMemo/picture/shared.png)"],
+		["PlainMemo/picture/orphan.png", "orphan"],
+		["PlainMemo/picture/shared.png", "shared"],
+		["PlainMemo/picture/recent.png", "recent"],
+	]);
+	const now = Date.UTC(2026, 7, 4);
+	harness.settings.trashRetentionDays = 30;
+	harness.setMtime("Flomo/_knomo-trash/Flomo/Old_2607250855.md", now - 31 * 24 * 60 * 60 * 1_000);
+	harness.setMtime("Flomo/_knomo-trash/Flomo/Recent_2607250856.md", now - 29 * 24 * 60 * 60 * 1_000);
+
+	const result = await harness.store.purgeExpiredDeletedMemos(now);
+
+	assert.deepEqual(result, { purged: 1, failed: [] });
+	assert.equal(harness.hasFile("Flomo/_knomo-trash/Flomo/Old_2607250855.md"), false);
+	assert.equal(harness.hasFile("Flomo/_knomo-trash/Flomo/Recent_2607250856.md"), true);
+	assert.equal(harness.hasFile("PlainMemo/picture/orphan.png"), false);
+	assert.equal(harness.hasFile("PlainMemo/picture/shared.png"), true);
+	assert.equal(harness.hasFile("PlainMemo/picture/recent.png"), true);
+});
+
 async function createHarness(initialFiles: Array<[string, string]>) {
 	await ensureObsidianStub();
 	const { TFile } = await import("obsidian");
@@ -100,16 +156,18 @@ async function createHarness(initialFiles: Array<[string, string]>) {
 	const files = new Map<string, InstanceType<typeof TFile>>();
 	const contents = new Map<string, string>();
 	const folders = new Set<string>();
+	const trashedPaths: string[] = [];
 	let clock = 1;
 	let readCount = 0;
 
 	const makeFile = (path: string, content: string) => {
 		const name = path.split("/").at(-1) ?? path;
+		const extensionIndex = name.lastIndexOf(".");
 		const file = Object.assign(new TFile(), {
 			path,
 			name,
-			basename: name.replace(/\.md$/i, ""),
-			extension: "md",
+			basename: extensionIndex === -1 ? name : name.slice(0, extensionIndex),
+			extension: extensionIndex === -1 ? "" : name.slice(extensionIndex + 1),
 			stat: { ctime: clock, mtime: clock, size: content.length },
 		});
 		clock += 1;
@@ -122,12 +180,13 @@ async function createHarness(initialFiles: Array<[string, string]>) {
 	const app = {
 		fileManager: {
 			trashFile: async (file: InstanceType<typeof TFile>) => {
+				trashedPaths.push(file.path);
 				files.delete(file.path);
 				contents.delete(file.path);
 			},
 		},
 		vault: {
-			getMarkdownFiles: () => [...files.values()],
+			getMarkdownFiles: () => [...files.values()].filter((file) => file.extension === "md"),
 			getAbstractFileByPath: (path: string) => files.get(path) ?? (folders.has(path) ? { path } : null),
 			cachedRead: async (file: InstanceType<typeof TFile>) => {
 				readCount += 1;
@@ -153,7 +212,15 @@ async function createHarness(initialFiles: Array<[string, string]>) {
 				contents.set(path, content);
 			},
 		},
-		metadataCache: { getFirstLinkpathDest: () => null },
+		metadataCache: {
+			getFirstLinkpathDest: (rawPath: string) => {
+				const decoded = decodeURI(rawPath).replace(/^\/+/, "");
+				const exact = files.get(decoded);
+				if (exact !== undefined) return exact;
+				const matches = [...files.values()].filter((file) => file.name === decoded);
+				return matches.length === 1 ? matches[0] : null;
+			},
+		},
 	};
 	const settings = {
 		memoFolders: ["Flomo"],
@@ -164,6 +231,12 @@ async function createHarness(initialFiles: Array<[string, string]>) {
 		store,
 		contents,
 		settings,
+		trashedPaths,
+		hasFile: (path: string) => files.has(path),
+		setMtime: (path: string, mtime: number) => {
+			const file = files.get(path);
+			if (file !== undefined) file.stat = { ...file.stat, mtime };
+		},
 		get readCount() { return readCount; },
 	};
 }

@@ -5,25 +5,20 @@ import { AttachmentService } from "../src/services/AttachmentService";
 
 test("AttachmentService creates image embed links through Obsidian attachment APIs", async () => {
 	const createdAttachments: Array<{ path: string; data: string }> = [];
-	const requestedPaths: Array<{ name: string; sourcePath: string }> = [];
 	const service = new AttachmentService({
 		fileManager: {
-			getAvailablePathForAttachment: async (name: string, sourcePath: string) => {
-				requestedPaths.push({ name, sourcePath });
-				return `Attachments/${name}`;
-			},
 			generateMarkdownLink: (attachment: { path: string }, sourcePath: string) => {
 				return `[[${attachment.path}|${sourcePath}]]`;
 			},
 		},
-		vault: {
-			createBinary: async (path: string, data: ArrayBuffer) => {
+	} as never, {
+		createBinary: async (name: string, data: Uint8Array) => {
+			const attachment = { path: `PlainMemo/picture/${name}` };
 				createdAttachments.push({
-					path,
+					path: attachment.path,
 					data: new TextDecoder().decode(data),
 				});
-				return { path };
-			},
+			return attachment;
 		},
 	} as never);
 
@@ -32,17 +27,13 @@ test("AttachmentService creates image embed links through Obsidian attachment AP
 		createTestFile("second.jpg", "second-data"),
 	]);
 
-	assert.deepEqual(requestedPaths, [
-		{ name: "first.png", sourcePath: "Daily/2026-06-02.md" },
-		{ name: "second.jpg", sourcePath: "Daily/2026-06-02.md" },
-	]);
 	assert.deepEqual(createdAttachments, [
-		{ path: "Attachments/first.png", data: "first-data" },
-		{ path: "Attachments/second.jpg", data: "second-data" },
+		{ path: "PlainMemo/picture/first.png", data: "first-data" },
+		{ path: "PlainMemo/picture/second.jpg", data: "second-data" },
 	]);
 	assert.deepEqual(links, [
-		"![[Attachments/first.png|Daily/2026-06-02.md]]",
-		"![[Attachments/second.jpg|Daily/2026-06-02.md]]",
+		"![[PlainMemo/picture/first.png|Daily/2026-06-02.md]]",
+		"![[PlainMemo/picture/second.jpg|Daily/2026-06-02.md]]",
 	]);
 });
 
@@ -51,20 +42,18 @@ test("AttachmentService trashes attachments created earlier in a failed batch", 
 	let createCount = 0;
 	const service = new AttachmentService({
 		fileManager: {
-			getAvailablePathForAttachment: async (name: string) => `Attachments/${name}`,
 			generateMarkdownLink: (attachment: { path: string }) => `[[${attachment.path}]]`,
 			trashFile: async (attachment: { path: string }) => {
 				trashedPaths.push(attachment.path);
 			},
 		},
-		vault: {
-			createBinary: async (path: string) => {
+	} as never, {
+		createBinary: async (name: string) => {
 				createCount += 1;
 				if (createCount === 2) {
 					throw new Error("disk full");
 				}
-				return { path };
-			},
+			return { path: `PlainMemo/picture/${name}` };
 		},
 	} as never);
 
@@ -75,7 +64,7 @@ test("AttachmentService trashes attachments created earlier in a failed batch", 
 		]),
 		/disk full/,
 	);
-	assert.deepEqual(trashedPaths, ["Attachments/first.png"]);
+	assert.deepEqual(trashedPaths, ["PlainMemo/picture/first.png"]);
 });
 
 test("AttachmentService continues rollback after one attachment cannot be trashed", async () => {
@@ -83,7 +72,6 @@ test("AttachmentService continues rollback after one attachment cannot be trashe
 	let createCount = 0;
 	const service = new AttachmentService({
 		fileManager: {
-			getAvailablePathForAttachment: async (name: string) => `Attachments/${name}`,
 			generateMarkdownLink: (attachment: { path: string }) => `[[${attachment.path}]]`,
 			trashFile: async (attachment: { path: string }) => {
 				trashAttempts.push(attachment.path);
@@ -92,14 +80,13 @@ test("AttachmentService continues rollback after one attachment cannot be trashe
 				}
 			},
 		},
-		vault: {
-			createBinary: async (path: string) => {
+	} as never, {
+		createBinary: async (name: string) => {
 				createCount += 1;
 				if (createCount === 3) {
 					throw new Error("disk full");
 				}
-				return { path };
-			},
+			return { path: `PlainMemo/picture/${name}` };
 		},
 	} as never);
 
@@ -112,11 +99,11 @@ test("AttachmentService continues rollback after one attachment cannot be trashe
 		(error: unknown) => {
 			assert.equal(error instanceof Error, true);
 			assert.match((error as Error).message, /disk full/);
-			assert.match((error as Error).message, /Attachments\/second\.png/);
+			assert.match((error as Error).message, /PlainMemo\/picture\/second\.png/);
 			return true;
 		},
 	);
-	assert.deepEqual(trashAttempts, ["Attachments/second.png", "Attachments/first.png"]);
+	assert.deepEqual(trashAttempts, ["PlainMemo/picture/second.png", "PlainMemo/picture/first.png"]);
 });
 
 function createTestFile(name: string, content: string): File {

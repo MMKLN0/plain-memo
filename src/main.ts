@@ -12,6 +12,7 @@ import { KNOMO_LOGO_ICON, registerKnomoIcons } from "./icons";
 import { t } from "./i18n";
 import { AttachmentService } from "./services/AttachmentService";
 import { FileMemoOrchestrator } from "./services/FileMemoOrchestrator";
+import { ManagedPictureService } from "./services/ManagedPictureService";
 import { PluginDataStore } from "./services/PluginDataStore";
 import { PinnedMemoService } from "./services/PinnedMemoService";
 import { RandomReunionService } from "./services/RandomReunionService";
@@ -28,6 +29,7 @@ import { MobileNavbarCompactController } from "./ui/MobileNavbarCompactControlle
 const OPEN_VIEWS_REFRESH_DEBOUNCE_MS = 150;
 const DESKTOP_SHARED_STATE_POLL_MS = 2_000;
 const MOBILE_SHARED_STATE_POLL_MS = 1_000;
+const TRASH_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1_000;
 
 export function getStartupDailyScanDays(isMobile: boolean): number { return isMobile ? 7 : 30; }
 
@@ -42,6 +44,8 @@ export default class KnomoPlugin extends Plugin {
 	syncOrchestrator!: FileMemoOrchestrator;
 	pinnedMemoService!: PinnedMemoService;
 	private viewRefreshScheduler: ViewRefreshScheduler | null = null;
+	private trashCleanupPromise: Promise<void> | null = null;
+	private lastTrashCleanupAt = 0;
 
 	async onload(): Promise<void> {
 		registerKnomoIcons();
@@ -63,8 +67,9 @@ export default class KnomoPlugin extends Plugin {
 			// Keep the plugin available with in-memory defaults when persisted settings cannot be read.
 		}
 		await this.pinnedMemoService.load();
-		this.syncOrchestrator = new FileMemoOrchestrator(this.app, () => this.settingsService.getSettings());
-		const attachmentService = new AttachmentService(this.app);
+		const managedPictures = new ManagedPictureService(this.app);
+		this.syncOrchestrator = new FileMemoOrchestrator(this.app, () => this.settingsService.getSettings(), managedPictures);
+		const attachmentService = new AttachmentService(this.app, managedPictures);
 		const referenceService = new ReferenceService(this.app);
 		this.viewRefreshScheduler = new ViewRefreshScheduler(
 			() => this.app.workspace.containerEl.win,
@@ -89,6 +94,7 @@ export default class KnomoPlugin extends Plugin {
 		this.registerMemoFileEvents();
 		this.registerAttachmentEvents();
 		this.registerSharedStateRefresh();
+		this.registerTrashCleanup();
 		this.registerHoverLinkSource(KNOMO_VIEW_TYPE, { display: "PlainMemo", defaultMod: false });
 		this.addRibbonIcon(KNOMO_LOGO_ICON, t("app.openKnomo"), () => { void this.activateView(); });
 		this.addCommand({ id: "open-view", name: t("app.openKnomo"), callback: () => { void this.activateView(); } });
@@ -166,7 +172,10 @@ export default class KnomoPlugin extends Plugin {
 		await this.refreshOpenViews(true);
 	}
 	private registerSharedStateRefresh(): void {
-		const refresh = (): void => { void this.reloadSharedStateFromStorage(); };
+		const refresh = (): void => {
+			void this.reloadSharedStateFromStorage();
+			void this.runTrashCleanup();
+		};
 		this.registerDomEvent(this.app.workspace.containerEl.win, "focus", refresh);
 		this.registerDomEvent(this.app.workspace.containerEl.doc, "visibilitychange", () => {
 			if (this.app.workspace.containerEl.doc.visibilityState === "visible") refresh();
@@ -189,6 +198,39 @@ export default class KnomoPlugin extends Plugin {
 			refreshSharedFile(file.path);
 		}));
 	}
+
+	/** Runs trash cleanup at startup and once per day while Obsidian remains open. */
+	private registerTrashCleanup(): void {
+		void this.runTrashCleanup(true);
+		this.registerInterval(this.app.workspace.containerEl.win.setInterval(() => {
+			void this.runTrashCleanup();
+		}, TRASH_CLEANUP_INTERVAL_MS));
+	}
+
+	/** Coalesces cleanup calls so filesystem work never overlaps. */
+	private async runTrashCleanup(force = false): Promise<void> {
+		const now = Date.now();
+		if (!force && now - this.lastTrashCleanupAt < TRASH_CLEANUP_INTERVAL_MS) return;
+		if (this.trashCleanupPromise !== null) {
+			await this.trashCleanupPromise;
+			if (!force) return;
+		}
+		this.lastTrashCleanupAt = Date.now();
+		const cleanup = this.syncOrchestrator.purgeExpiredDeletedMemos().then((result) => {
+			if (result.failed.length > 0) {
+				console.error(`PlainMemo failed to purge ${result.failed.length} expired trash entries`, result.failed);
+			}
+		}).catch((error) => {
+			console.error("PlainMemo automatic trash cleanup failed", error);
+		});
+		this.trashCleanupPromise = cleanup;
+		try {
+			await cleanup;
+		} finally {
+			if (this.trashCleanupPromise === cleanup) this.trashCleanupPromise = null;
+		}
+	}
+
 	private async reloadSharedStateFromStorage(): Promise<boolean> {
 		try {
 			const [settingsChanged, pinnedChanged] = await Promise.all([
@@ -196,6 +238,7 @@ export default class KnomoPlugin extends Plugin {
 				this.pinnedMemoService.reloadIfChanged(),
 			]);
 			if (settingsChanged) {
+				void this.runTrashCleanup(true);
 				this.syncOrchestrator.invalidateAll();
 				await this.refreshOpenViews(true);
 				return true;

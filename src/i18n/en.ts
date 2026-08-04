@@ -334,6 +334,8 @@ export const en: Record<TranslationKey, string> = {
 	"settings.file.collapseThresholdDescription": "Cards with more source lines are collapsed by default. The minimum is 6.",
 	"settings.file.pinnedMemoLimit": "Pinned memo limit",
 	"settings.file.pinnedMemoLimitDescription": "At most this many memos can appear in the pinned area.",
+	"settings.file.trashRetentionDays": "Trash retention period",
+	"settings.file.trashRetentionDaysDescription": "In days. Memos older than this period are deleted automatically and permanently. The minimum is 1 day.",
 	"settings.file.importFolderTooltip": "Add a timestamp suffix so PlainMemo can recognize these filenames.",
 	"settings.file.importFolderTitle": "Prepare Markdown files",
 	"settings.file.importFolderConfirm": "Add a creation-time suffix to {{count}} Markdown filenames? {{skipped}} recognized files will be skipped. Markdown content will not change.",

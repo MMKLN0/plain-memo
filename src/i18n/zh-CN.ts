@@ -332,6 +332,8 @@ export const zhCN = {
 	"settings.file.collapseThresholdDescription": "正文超过这个行数时默认折叠，最小值为 6。",
 	"settings.file.pinnedMemoLimit": "置顶笔记数量上限",
 	"settings.file.pinnedMemoLimitDescription": "最多可置顶的笔记数量。",
+	"settings.file.trashRetentionDays": "回收站保留时间",
+	"settings.file.trashRetentionDaysDescription": "以天为单位。超过保留时间的笔记会被自动永久删除，最小值为 1 天。",
 	"settings.file.importFolderTooltip": "给文件名添加时间后缀，让它能被 PlainMemo 识别。",
 	"settings.file.importFolderTitle": "整理 Markdown 文件",
 	"settings.file.importFolderConfirm": "将为 {{count}} 个 Markdown 文件名添加创建时间后缀。{{skipped}} 个已识别文件会跳过，正文不会改动。",

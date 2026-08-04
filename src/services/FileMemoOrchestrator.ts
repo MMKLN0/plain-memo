@@ -3,6 +3,7 @@ import type { App } from "obsidian";
 
 import { RecordStatsBuilder, type PreparedRecordStats } from "./RecordStatsService";
 import { MarkdownBlockService } from "./MarkdownBlockService";
+import { ManagedPictureService } from "./ManagedPictureService";
 import type {
 	CreateMemoOptions,
 	CreateMemoResult,
@@ -52,6 +53,7 @@ interface ReferenceHint {
 }
 
 const TRASH_FOLDER_NAME = "_knomo-trash";
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1_000;
 export const MOBILE_INITIAL_MEMO_COUNT = 50;
 const DEFAULT_BACKGROUND_READ_CONCURRENCY = 4;
 const DEFAULT_BACKGROUND_TIME_BUDGET_MS = 4;
@@ -62,7 +64,11 @@ export class FileMemoOrchestrator {
 	private readonly cache = new Map<string, CachedMemo>();
 	private readonly pendingReads = new Map<string, PendingMemoRead>();
 
-	constructor(private readonly app: App, private readonly getSettings: GetSettings) {}
+	constructor(
+		private readonly app: App,
+		private readonly getSettings: GetSettings,
+		private readonly managedPictures = new ManagedPictureService(app),
+	) {}
 
 	getDailyNotesStatus(): MemoStoreStatus {
 		const defaultFolder = this.getSettings().defaultMemoFolder ?? "";
@@ -128,6 +134,9 @@ export class FileMemoOrchestrator {
 		const editedBody = normalizeContent(input);
 		if (!editedBody) throw new Error("Memo content cannot be empty.");
 		const content = restoreMemoFrontmatter(memo.contentSnapshot, editedBody);
+		const previousPictures = this.managedPictures.findReferencedPictures(memo.contentSnapshot, file.path);
+		const nextPictures = new Set(this.managedPictures.findReferencedPictures(content, file.path));
+		const removedPictures = previousPictures.filter((path) => !nextPictures.has(path));
 		await this.app.vault.modify(file, content);
 		this.cache.delete(file.path);
 		const updated = await this.readFile(file, undefined, {
@@ -135,6 +144,7 @@ export class FileMemoOrchestrator {
 			sourceReferenceText: memo.references[0]?.referenceText ?? null,
 		});
 		this.cacheMemo(file, updated);
+		await this.cleanupManagedPictures(removedPictures);
 		return updated;
 	}
 
@@ -233,7 +243,41 @@ export class FileMemoOrchestrator {
 	async purgeDeletedMemoRecord(memo: MemoRecord): Promise<void> {
 		const file = this.requireFile(memo.dailyRef.path);
 		if (!this.isManagedTrashPath(file.path)) throw new Error("Only memos in PlainMemo trash can be permanently deleted.");
+		const pictures = this.managedPictures.findReferencedPictures(memo.contentSnapshot, file.path);
+		const deletedPath = file.path;
 		await this.app.fileManager.trashFile(file);
+		await this.cleanupManagedPictures(pictures, [deletedPath]);
+	}
+
+	/** Permanently removes PlainMemo trash entries whose deletion time exceeds the configured retention period. */
+	async purgeExpiredDeletedMemos(now = Date.now()): Promise<{ purged: number; failed: string[] }> {
+		const retentionDays = Math.max(1, Math.floor(this.getSettings().trashRetentionDays ?? 30));
+		const cutoff = now - retentionDays * MILLISECONDS_PER_DAY;
+		const expiredFiles = this.app.vault.getMarkdownFiles()
+			.filter((file) => this.isManagedTrashPath(file.path) && file.stat.mtime <= cutoff)
+			.sort((left, right) => left.stat.mtime - right.stat.mtime || left.path.localeCompare(right.path));
+		let purged = 0;
+		const failed: string[] = [];
+		for (const file of expiredFiles) {
+			try {
+				await this.purgeDeletedMemoRecord(await this.readDeletedFile(file));
+				purged += 1;
+			} catch (error) {
+				failed.push(file.path);
+				console.error(`PlainMemo failed to purge expired trash entry: ${file.path}`, error);
+			}
+		}
+		return { purged, failed };
+	}
+
+	/** Cleans managed pictures without turning a successful memo mutation into a save failure. */
+	private async cleanupManagedPictures(paths: readonly string[], excludedMarkdownPaths: readonly string[] = []): Promise<void> {
+		if (paths.length === 0) return;
+		try {
+			await this.managedPictures.trashUnreferenced(paths, excludedMarkdownPaths);
+		} catch (error) {
+			console.error("PlainMemo failed to clean unreferenced managed pictures", error);
+		}
 	}
 
 	async buildRecordStats(

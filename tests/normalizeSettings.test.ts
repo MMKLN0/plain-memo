@@ -9,6 +9,7 @@ test("normalizes the current standalone memo settings", () => {
 		defaultMemoFolder: "Cards",
 		memoCollapseLineThreshold: 3,
 		pinnedMemoLimit: 99,
+		trashRetentionDays: 0,
 		timeBuoyEnabled: false,
 		mobileCompactMode: "on",
 		desktopSidebarWidth: 420,
@@ -19,6 +20,7 @@ test("normalizes the current standalone memo settings", () => {
 	assert.equal(settings.defaultMemoFolder, "Cards");
 	assert.equal(settings.memoCollapseLineThreshold, 6);
 	assert.equal(settings.pinnedMemoLimit, 20);
+	assert.equal(settings.trashRetentionDays, 1);
 	assert.equal(settings.timeBuoyEnabled, false);
 	assert.equal(settings.mobileCompactMode, "on");
 	assert.equal(settings.desktopSidebarWidth, 420);
@@ -36,6 +38,7 @@ test("uses current defaults for invalid or missing values", () => {
 	assert.equal(settings.defaultMemoFolder, DEFAULT_KNOMO_SETTINGS.defaultMemoFolder);
 	assert.equal(settings.memoCollapseLineThreshold, DEFAULT_KNOMO_SETTINGS.memoCollapseLineThreshold);
 	assert.equal(settings.pinnedMemoLimit, DEFAULT_KNOMO_SETTINGS.pinnedMemoLimit);
+	assert.equal(settings.trashRetentionDays, DEFAULT_KNOMO_SETTINGS.trashRetentionDays);
 	assert.equal(settings.timeBuoyEnabled, true);
 	assert.equal(settings.mobileCompactMode, "auto");
 });
@@ -43,6 +46,11 @@ test("uses current defaults for invalid or missing values", () => {
 test("defaults the pinned memo limit to five", () => {
 	assert.equal(DEFAULT_KNOMO_SETTINGS.pinnedMemoLimit, 5);
 	assert.equal(normalizeSettings({}).pinnedMemoLimit, 5);
+});
+
+test("defaults the trash retention period to thirty days", () => {
+	assert.equal(DEFAULT_KNOMO_SETTINGS.trashRetentionDays, 30);
+	assert.equal(normalizeSettings({}).trashRetentionDays, 30);
 });
 
 test("adds the write folder to the scan roots and removes nested roots", () => {

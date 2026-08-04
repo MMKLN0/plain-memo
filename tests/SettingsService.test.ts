@@ -30,6 +30,7 @@ test("combines synchronized Vault settings with device-local UI settings", async
 			defaultMemoFolder: "Cards",
 			memoCollapseLineThreshold: 12,
 			pinnedMemoLimit: 5,
+			trashRetentionDays: 45,
 			timeBuoyEnabled: false,
 		},
 	});
@@ -39,6 +40,7 @@ test("combines synchronized Vault settings with device-local UI settings", async
 
 	assert.deepEqual(settings.memoFolders, ["Cards", "Imported"]);
 	assert.equal(settings.defaultMemoFolder, "Cards");
+	assert.equal(settings.trashRetentionDays, 45);
 	assert.equal(settings.mobileCompactMode, "off");
 	assert.equal(settings.desktopSidebarWidth, 360);
 	assert.equal(settings.desktopSidebarCollapsed, true);
@@ -50,12 +52,13 @@ test("writes synchronized and local setting patches to separate stores", async (
 	const service = new SettingsService(shared.store, new PluginDataStore(local.plugin));
 	await service.loadSettings();
 
-	await service.updateSettings({ memoFolders: ["PlainMemo", "Archive"], memoCollapseLineThreshold: 12 });
+	await service.updateSettings({ memoFolders: ["PlainMemo", "Archive"], memoCollapseLineThreshold: 12, trashRetentionDays: 60 });
 	await service.updateSettings({ desktopSidebarWidth: 320, desktopSidebarCollapsed: true });
 
 	const synchronized = shared.read(SHARED_SETTINGS_PATH) as Record<string, unknown>;
 	assert.deepEqual(synchronized.memoFolders, ["Archive", "PlainMemo"]);
 	assert.equal(synchronized.memoCollapseLineThreshold, 12);
+	assert.equal(synchronized.trashRetentionDays, 60);
 	assert.equal("desktopSidebarWidth" in synchronized, false);
 	const localData = await local.read() as Record<string, unknown>;
 	assert.equal(localData.unrelated, "keep");

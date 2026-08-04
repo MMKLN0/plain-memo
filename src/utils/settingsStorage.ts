@@ -2,7 +2,7 @@ import type { KnomoSettings } from "../types/settings";
 import { isRecord } from "./object";
 
 export type SharedKnomoSettings = Pick<KnomoSettings,
-	"settingsVersion" | "memoFolders" | "defaultMemoFolder" | "memoCollapseLineThreshold" | "pinnedMemoLimit" | "timeBuoyEnabled"
+	"settingsVersion" | "memoFolders" | "defaultMemoFolder" | "memoCollapseLineThreshold" | "pinnedMemoLimit" | "trashRetentionDays" | "timeBuoyEnabled"
 >;
 
 export type LocalKnomoSettings = Pick<KnomoSettings,
@@ -15,6 +15,7 @@ const SHARED_SETTING_KEYS: readonly (keyof SharedKnomoSettings)[] = [
 	"defaultMemoFolder",
 	"memoCollapseLineThreshold",
 	"pinnedMemoLimit",
+	"trashRetentionDays",
 	"timeBuoyEnabled",
 ];
 
@@ -32,6 +33,7 @@ export function selectSharedSettings(settings: KnomoSettings): SharedKnomoSettin
 		defaultMemoFolder: settings.defaultMemoFolder ?? "",
 		memoCollapseLineThreshold: settings.memoCollapseLineThreshold ?? 8,
 		pinnedMemoLimit: settings.pinnedMemoLimit ?? 5,
+		trashRetentionDays: settings.trashRetentionDays ?? 30,
 		timeBuoyEnabled: settings.timeBuoyEnabled,
 	};
 }

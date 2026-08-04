@@ -3,6 +3,7 @@ import type { App } from "obsidian";
 
 import { formatMemoFilenameTimestamp, toSafeMemoFileStem } from "../utils/fileMemoName";
 import { ensureFolder } from "../utils/vault";
+import { ManagedPictureService } from "./ManagedPictureService";
 
 interface FlomoMemoDraft {
 	content: string;
@@ -33,7 +34,10 @@ export interface FlomoImportResult extends FlomoImportPreview {
 
 /** Imports the public Flomo HTML export without adding metadata to the memo files. */
 export class FlomoImportService {
-	constructor(private readonly app: App) {}
+	constructor(
+		private readonly app: App,
+		private readonly managedPictures = new ManagedPictureService(app),
+	) {}
 
 	async preview(file: File, importOptions: FlomoImportOptions = {}): Promise<FlomoImportPreview> {
 		const options = normalizeImportOptions(importOptions);
@@ -49,7 +53,13 @@ export class FlomoImportService {
 		const source = await readFlomoSource(file);
 		const drafts = parseFlomoMemos(source.html, options);
 		const sourceAssetPaths = collectFlomoAssetPaths(source.html).filter((path) => !shouldSkipAttachment(path, options));
-		const attachmentLinks = await this.copyAttachments(targetFolder, sourceAssetPaths, source.attachments);
+		const attachmentLinks = await copyFlomoAttachments(
+			this.app,
+			this.managedPictures,
+			targetFolder,
+			sourceAssetPaths,
+			source.attachments,
+		);
 		let created = 0;
 		let skipped = 0;
 		const failed: string[] = [];
@@ -77,32 +87,6 @@ export class FlomoImportService {
 			skipped,
 			failed,
 		};
-	}
-
-	private async copyAttachments(
-		targetFolder: string,
-		sourcePaths: readonly string[],
-		attachments: ReadonlyMap<string, Uint8Array>,
-	): Promise<Map<string, string>> {
-		const links = new Map<string, string>();
-		if (attachments.size === 0) return links;
-		const assetFolder = normalizePath(`${targetFolder}/flomo-attachments`);
-		await ensureFolder(this.app, assetFolder);
-		for (const sourcePath of sourcePaths) {
-			const data = attachments.get(sourcePath);
-			if (data === undefined || links.has(sourcePath)) continue;
-			const name = sourcePath.split("/").pop() ?? "attachment";
-			const path = await this.findOrAllocateAttachmentPath(assetFolder, name, data);
-			if (this.app.vault.getAbstractFileByPath(path) instanceof TFile) {
-				links.set(sourcePath, `![[${path}]]`);
-				continue;
-			}
-			const copy = new Uint8Array(data.byteLength);
-			copy.set(data);
-			await this.app.vault.createBinary(path, copy.buffer);
-			links.set(sourcePath, `![[${path}]]`);
-		}
-		return links;
 	}
 
 	private async getMemoBasePath(folder: string, content: string, createdAt: Date): Promise<string> {
@@ -141,18 +125,73 @@ export class FlomoImportService {
 		}
 	}
 
-	private async findOrAllocateAttachmentPath(folder: string, fileName: string, data: Uint8Array): Promise<string> {
-		const base = normalizePath(`${folder}/${fileName}`);
-		const extensionIndex = base.lastIndexOf(".");
-		const stem = extensionIndex === -1 ? base : base.slice(0, extensionIndex);
-		const extension = extensionIndex === -1 ? "" : base.slice(extensionIndex);
-		for (let number = 1; ; number += 1) {
-			const path = number === 1 ? base : `${stem} (${number})${extension}`;
-			const existing = this.app.vault.getAbstractFileByPath(path);
-			if (existing === null) return path;
-			if (existing instanceof TFile && bytesEqual(new Uint8Array(await this.app.vault.readBinary(existing)), data)) return path;
+}
+
+/** Copies available Flomo attachments through PlainMemo's managed picture store. */
+export async function copyFlomoAttachments(
+	app: App,
+	managedPictures: ManagedPictureService,
+	targetFolder: string,
+	sourcePaths: readonly string[],
+	attachments: ReadonlyMap<string, Uint8Array>,
+): Promise<Map<string, string>> {
+	const links = new Map<string, string>();
+	if (attachments.size === 0) return links;
+	let audioFolderReady = false;
+	const audioFolder = normalizePath(`${targetFolder}/flomo-attachments`);
+	for (const sourcePath of sourcePaths) {
+		const data = attachments.get(sourcePath);
+		if (data === undefined || links.has(sourcePath)) continue;
+		const name = sourcePath.split("/").pop() ?? "attachment";
+		if (isFlomoAudioPath(sourcePath)) {
+			if (!audioFolderReady) {
+				await ensureFolder(app, audioFolder);
+				audioFolderReady = true;
+			}
+			const path = await findOrAllocateFlomoAttachmentPath(app, audioFolder, name, data);
+			if (!(app.vault.getAbstractFileByPath(path) instanceof TFile)) {
+				await app.vault.createBinary(path, copyBytes(data));
+			}
+			links.set(sourcePath, `![[${path}]]`);
+			continue;
 		}
+		const picture = await managedPictures.createBinary(name, data, true);
+		links.set(sourcePath, `![[${picture.path}]]`);
 	}
+	return links;
+}
+
+/** Reuses identical Flomo audio or allocates a collision-safe path in the legacy attachment folder. */
+async function findOrAllocateFlomoAttachmentPath(
+	app: App,
+	folder: string,
+	fileName: string,
+	data: Uint8Array,
+): Promise<string> {
+	const base = normalizePath(`${folder}/${fileName}`);
+	const extensionIndex = base.lastIndexOf(".");
+	const stem = extensionIndex === -1 ? base : base.slice(0, extensionIndex);
+	const extension = extensionIndex === -1 ? "" : base.slice(extensionIndex);
+	for (let number = 1; ; number += 1) {
+		const path = number === 1 ? base : `${stem} (${number})${extension}`;
+		const existing = app.vault.getAbstractFileByPath(path);
+		if (existing === null) return path;
+		if (existing instanceof TFile && bytesEqual(new Uint8Array(await app.vault.readBinary(existing)), data)) return path;
+	}
+}
+
+/** Produces an exact ArrayBuffer for imported Flomo audio data. */
+function copyBytes(data: Uint8Array): ArrayBuffer {
+	const copy = new Uint8Array(data.byteLength);
+	copy.set(data);
+	return copy.buffer;
+}
+
+/** Compares imported Flomo attachment bytes for deduplication. */
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+	if (left.byteLength !== right.byteLength) return false;
+	for (let index = 0; index < left.byteLength; index += 1) if (left[index] !== right[index]) return false;
+	return true;
 }
 
 async function readFlomoSource(file: File): Promise<FlomoSource> {
@@ -294,10 +333,4 @@ async function readZipEntry(bytes: Uint8Array, view: DataView, localOffset: numb
 	if (method !== 8 || typeof DecompressionStream === "undefined") throw new Error("This ZIP compression is not supported by the current Obsidian runtime.");
 	const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
 	return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
-	if (left.byteLength !== right.byteLength) return false;
-	for (let index = 0; index < left.byteLength; index += 1) if (left[index] !== right[index]) return false;
-	return true;
 }

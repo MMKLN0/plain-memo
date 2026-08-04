@@ -41,6 +41,10 @@ export function normalizeSettings(value: unknown): KnomoSettings {
 			saved.pinnedMemoLimit,
 			DEFAULT_KNOMO_SETTINGS.pinnedMemoLimit ?? 5,
 		)))),
+		trashRetentionDays: Math.max(1, Math.floor(numberOrDefault(
+			saved.trashRetentionDays,
+			DEFAULT_KNOMO_SETTINGS.trashRetentionDays ?? 30,
+		))),
 		timeBuoyEnabled: booleanOrDefault(saved.timeBuoyEnabled, DEFAULT_KNOMO_SETTINGS.timeBuoyEnabled),
 		mobileCompactMode: isMobileCompactMode(saved.mobileCompactMode)
 			? saved.mobileCompactMode
