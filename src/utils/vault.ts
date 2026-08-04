@@ -18,7 +18,31 @@ export async function ensureFolder(app: App, folderPath: string): Promise<void> 
 		if (existing !== null) {
 			throw new Error(`Path exists and is not a folder: ${currentPath}`);
 		}
-		await app.vault.createFolder(currentPath);
+		const adapterType = await getAdapterPathType(app, currentPath);
+		if (adapterType === "folder") {
+			continue;
+		}
+		if (adapterType === "file") {
+			throw new Error(`Path exists and is not a folder: ${currentPath}`);
+		}
+		try {
+			await app.vault.createFolder(currentPath);
+		} catch (error) {
+			const nextExisting = app.vault.getAbstractFileByPath(currentPath);
+			if (nextExisting instanceof TFolder || await getAdapterPathType(app, currentPath) === "folder") {
+				continue;
+			}
+			throw error;
+		}
+	}
+}
+
+/** Reads the underlying filesystem when the mobile Vault index is not ready yet. */
+async function getAdapterPathType(app: App, path: string): Promise<"file" | "folder" | null> {
+	try {
+		return (await app.vault.adapter.stat(path))?.type ?? null;
+	} catch {
+		return null;
 	}
 }
 

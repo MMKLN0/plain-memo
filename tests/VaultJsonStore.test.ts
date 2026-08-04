@@ -13,6 +13,18 @@ test("creates PlainMemo folders without eagerly creating state files", async () 
 	assert.equal(harness.contents.size, 0);
 });
 
+test("accepts folders that exist on disk before the mobile Vault index is ready", async () => {
+	const harness = await createHarness();
+	harness.addDiskFolder("PlainMemo");
+	harness.addDiskFolder("PlainMemo/data");
+	harness.addDiskFolder("PlainMemo/picture");
+
+	await harness.store.ensureFolder("PlainMemo/data");
+	await harness.store.ensureFolder("PlainMemo/picture");
+
+	assert.equal(harness.createFolderCalls(), 0);
+});
+
 test("reads, writes, lists, and mutates synchronized JSON files", async () => {
 	const harness = await createHarness();
 
@@ -39,6 +51,7 @@ async function createHarness() {
 	const folders = new Set<string>();
 	const folderEntries = new Map<string, InstanceType<typeof TFolder>>();
 	const contents = new Map<string, string>();
+	let createFolderCallCount = 0;
 	const makeFile = (path: string, content: string) => {
 		const name = path.split("/").at(-1) ?? path;
 		const file = Object.assign(new TFile(), {
@@ -55,10 +68,15 @@ async function createHarness() {
 	};
 	const app = {
 		vault: {
+			adapter: {
+				stat: async (path: string) => folders.has(path) ? { type: "folder" } : null,
+			},
 			getAbstractFileByPath: (path: string) => files.get(path) ?? folderEntries.get(path) ?? null,
 			getFiles: () => [...files.values()],
 			cachedRead: async (file: InstanceType<typeof TFile>) => contents.get(file.path) ?? "",
 			createFolder: async (path: string) => {
+				createFolderCallCount += 1;
+				if (folders.has(path)) throw new Error("Folder already exists.");
 				folders.add(path);
 				const folder = Object.assign(new TFolder(), { path, name: path.split("/").at(-1) ?? path });
 				folderEntries.set(path, folder);
@@ -69,5 +87,11 @@ async function createHarness() {
 			modify: async (file: InstanceType<typeof TFile>, content: string) => { contents.set(file.path, content); },
 		},
 	};
-	return { store: new VaultJsonStore(app as never), folders, contents };
+	return {
+		store: new VaultJsonStore(app as never),
+		folders,
+		contents,
+		addDiskFolder: (path: string) => { folders.add(path); },
+		createFolderCalls: () => createFolderCallCount,
+	};
 }
