@@ -99,7 +99,7 @@ export class KnomoSettingTab extends PluginSettingTab {
 				text.inputEl.min = "1";
 				text.inputEl.max = "20";
 				text.inputEl.step = "1";
-				text.setValue(String(current.pinnedMemoLimit ?? 3));
+				text.setValue(String(current.pinnedMemoLimit ?? 5));
 				text.inputEl.addEventListener("blur", () => { void this.commitPinnedMemoLimit(text.inputEl); });
 				text.inputEl.addEventListener("keydown", (event) => { if (event.key === "Enter") text.inputEl.blur(); });
 			});
@@ -207,11 +207,11 @@ export class KnomoSettingTab extends PluginSettingTab {
 
 	private async commitPinnedMemoLimit(input: HTMLInputElement): Promise<void> {
 		const parsed = Number(input.value);
-		const limit = Math.min(20, Math.max(1, Number.isFinite(parsed) ? Math.floor(parsed) : 3));
+		const limit = Math.min(20, Math.max(1, Number.isFinite(parsed) ? Math.floor(parsed) : 5));
 		const pinnedCount = this.pinnedMemos.getSnapshot().paths.length;
 		if (limit < pinnedCount) {
-			input.value = String(this.settings.getSettings().pinnedMemoLimit ?? 3);
-			new Notice(t("settings.file.pinnedMemoLimitTooLow", { count: pinnedCount }));
+			input.value = String(this.settings.getSettings().pinnedMemoLimit ?? 5);
+			new Notice(t("notice.pinnedMemoLimitReached", { limit, current: pinnedCount }));
 			return;
 		}
 		input.value = String(limit);

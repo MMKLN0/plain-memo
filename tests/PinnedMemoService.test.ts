@@ -53,6 +53,25 @@ test("reloadIfChanged adopts externally synchronized marker files", async () => 
 	assert.equal(await service.reloadIfChanged(), false);
 });
 
+test("keeps synchronized pins above the limit and blocks the next new pin", async () => {
+	const harness = createHarness();
+	for (const name of ["a", "b", "c", "d"]) {
+		harness.replaceShared(`${PINNED_MEMOS_FOLDER}/${name}.json`, {
+			path: `Cards/${name}.md`,
+			pinnedAt: `2026-08-04T12:00:0${name.charCodeAt(0) - 97}.000Z`,
+			pinned: true,
+		});
+	}
+	const service = new PinnedMemoService(harness.vaultStore, harness.localStore);
+
+	await service.load();
+
+	assert.equal(service.getSnapshot().paths.length, 4);
+	assert.equal(await service.pin("Cards/e.md", 3), false);
+	assert.equal(service.getSnapshot().paths.length, 4);
+	assert.equal(harness.sharedFiles().length, 4);
+});
+
 test("unpin removes only markers for the selected memo", async () => {
 	const harness = createHarness();
 	const service = new PinnedMemoService(harness.vaultStore, harness.localStore);

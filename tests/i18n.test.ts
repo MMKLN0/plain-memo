@@ -39,6 +39,20 @@ test("formats card word count with locale-specific colons", async () => {
 	assert.equal(translate("en", "card.wordCount", { count: 123 }), "Words: 123");
 });
 
+test("formats pinned memo limit notices with the configured and current counts", async () => {
+	await ensureObsidianStub();
+	const { translate } = await import("../src/i18n");
+
+	assert.equal(
+		translate("zh-CN", "notice.pinnedMemoLimitReached", { limit: 3, current: 4 }),
+		"已达到置顶笔记数量上限（上限3，当前4），请先取消其他笔记的置顶。",
+	);
+	assert.equal(
+		translate("en", "notice.pinnedMemoLimitReached", { limit: 3, current: 4 }),
+		"Pinned memo limit reached (limit 3, current 4). Unpin another memo first.",
+	);
+});
+
 test("adds spacing only to record statistics summaries", async () => {
 	await ensureObsidianStub();
 	const { translate } = await import("../src/i18n");

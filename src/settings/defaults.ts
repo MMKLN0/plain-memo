@@ -10,7 +10,7 @@ export const DEFAULT_KNOMO_SETTINGS: KnomoSettings = {
 	memoFolders: [DEFAULT_MEMO_FOLDER],
 	defaultMemoFolder: DEFAULT_MEMO_FOLDER,
 	memoCollapseLineThreshold: 8,
-	pinnedMemoLimit: 3,
+	pinnedMemoLimit: 5,
 	timeBuoyEnabled: true,
 	mobileCompactMode: "auto",
 	desktopSidebarWidth: DEFAULT_DESKTOP_SIDEBAR_WIDTH,

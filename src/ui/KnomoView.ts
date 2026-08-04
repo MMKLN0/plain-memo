@@ -3462,8 +3462,12 @@ export class KnomoView extends ItemView {
 				this.syncCardMenuState();
 				return;
 			} else if (action === "pin") {
-				const pinned = await this.pinnedMemos.pin(memo.id, this.settingsService.getSettings().pinnedMemoLimit ?? 3);
-				if (!pinned) new Notice(t("notice.pinnedMemoLimitReached"));
+				const limit = this.settingsService.getSettings().pinnedMemoLimit ?? 5;
+				const pinned = await this.pinnedMemos.pin(memo.id, limit);
+				if (!pinned) new Notice(t("notice.pinnedMemoLimitReached", {
+					limit,
+					current: this.pinnedMemos.getSnapshot().paths.length,
+				}));
 				this.forceRebuildCardFlow();
 				return;
 			} else if (action === "unpin") {

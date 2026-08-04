@@ -40,6 +40,11 @@ test("uses current defaults for invalid or missing values", () => {
 	assert.equal(settings.mobileCompactMode, "auto");
 });
 
+test("defaults the pinned memo limit to five", () => {
+	assert.equal(DEFAULT_KNOMO_SETTINGS.pinnedMemoLimit, 5);
+	assert.equal(normalizeSettings({}).pinnedMemoLimit, 5);
+});
+
 test("adds the write folder to the scan roots and removes nested roots", () => {
 	const settings = normalizeSettings({
 		memoFolders: ["Archive/old", "Cards"],

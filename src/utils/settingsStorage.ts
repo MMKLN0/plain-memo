@@ -31,7 +31,7 @@ export function selectSharedSettings(settings: KnomoSettings): SharedKnomoSettin
 		memoFolders: [...(settings.memoFolders ?? [])],
 		defaultMemoFolder: settings.defaultMemoFolder ?? "",
 		memoCollapseLineThreshold: settings.memoCollapseLineThreshold ?? 8,
-		pinnedMemoLimit: settings.pinnedMemoLimit ?? 3,
+		pinnedMemoLimit: settings.pinnedMemoLimit ?? 5,
 		timeBuoyEnabled: settings.timeBuoyEnabled,
 	};
 }
