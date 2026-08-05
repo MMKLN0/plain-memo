@@ -4,7 +4,7 @@ English | [简体中文](./README.zh-CN.md)
 
 > An Obsidian Memos plugin that stores each memo as an independent Markdown file.
 
-Current stable release: [PlainMemo 2.2.1](https://github.com/MMKLN0/plain-memo/releases/tag/2.2.1)
+Current stable release: [PlainMemo 2.2.2](https://github.com/MMKLN0/plain-memo/releases/tag/2.2.2)
 
 PlainMemo is an unofficial fork of [BanyanSo/knomo](https://github.com/BanyanSo/knomo), continued under the upstream MIT license. It is not an official release channel for the upstream project and does not imply upstream endorsement or support.
 
@@ -29,7 +29,7 @@ This is an intentional storage-model change. Existing upstream Daily Notes and m
 - Recursively scan multiple Vault-relative folders and choose a separate default folder for new memos.
 - Recognize `#tags` and Obsidian WikiLinks such as `[[Project note]]`.
 - Browse hierarchical tags in the sidebar and rename a tag path, including its descendants, across recognized PlainMemo files.
-- Render Markdown lists, tasks, quotes, images, and links.
+- Render Markdown lists, tasks, quotes, images, and links; paste images on desktop and mobile, or drag image files into the desktop editor.
 - Collapse long cards after a configurable line threshold.
 - Pin a configurable number of important memos above the regular card feed, with a collapsible pinned area.
 - Store pins, scan folders, and other memo-related state under `PlainMemo/data` in the Vault and refresh synchronized state without restarting Obsidian.

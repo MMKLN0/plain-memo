@@ -4,7 +4,7 @@
 
 > 一个将碎片笔记保存为独立 Markdown 文件的 Obsidian Memos 插件。
 
-当前稳定版本：[PlainMemo 2.2.1](https://github.com/MMKLN0/plain-memo/releases/tag/2.2.1)
+当前稳定版本：[PlainMemo 2.2.2](https://github.com/MMKLN0/plain-memo/releases/tag/2.2.2)
 
 PlainMemo 是 [BanyanSo/knomo](https://github.com/BanyanSo/knomo) 的非官方 fork，基于上游 MIT 许可证继续开发。本仓库不是上游项目的官方发布渠道，也不代表上游作者的观点或支持承诺。
 
@@ -29,7 +29,7 @@ PlainMemo 的目标是让每张卡片都是一个可独立阅读、可用 Obsidi
 - 递归扫描多个 Vault 相对文件夹，并为新 memo 单独指定默认保存位置；
 - 识别 `#标签` 与 Obsidian WikiLink（如 `[[项目笔记]]`）；
 - 在侧栏浏览层级标签，并可重命名标签路径，将修改同步应用到该标签及其子标签；
-- 渲染 Markdown 列表、任务、引用、图片和链接；
+- 渲染 Markdown 列表、任务、引用、图片和链接；支持在电脑端和手机端粘贴图片，并可在电脑端拖入图片文件；
 - 长卡片可按设置的行数阈值折叠；
 - 可将重要 memo 置顶到普通卡片流上方，支持设置数量上限并折叠置顶区域；
 - 将置顶、扫描目录和其他笔记相关状态保存在 Vault 的 `PlainMemo/data` 中，同步后无需重启 Obsidian 即可刷新；
