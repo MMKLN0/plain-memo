@@ -6088,9 +6088,6 @@ export class KnomoView extends ItemView {
 	}
 
 	private handleComposerPaste(event: ClipboardEvent): void {
-		if (this.currentLayout === "mobile") {
-			return;
-		}
 		const files = getImageFiles(event.clipboardData);
 		if (files.length === 0) {
 			return;
