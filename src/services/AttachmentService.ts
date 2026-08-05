@@ -50,6 +50,12 @@ export class AttachmentService {
 		}
 	}
 
+	/** Moves newly created pictures to Obsidian Trash when the draft no longer references them. */
+	async cleanupUnreferenced(paths: readonly string[]): Promise<void> {
+		if (paths.length === 0) return;
+		await this.managedPictures.trashUnreferenced(paths);
+	}
+
 	private async rollbackAttachments(attachments: readonly TFile[]): Promise<AttachmentRollbackFailure[]> {
 		const failures: AttachmentRollbackFailure[] = [];
 		for (let index = attachments.length - 1; index >= 0; index -= 1) {

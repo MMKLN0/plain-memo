@@ -29,7 +29,7 @@ import {
 	replaceTimeBuoyTrigger,
 } from "../utils/timeBuoyComposer";
 import { stripTrailingWikiLink, withMemoIdAlias } from "../utils/references";
-import { parseMemoTags } from "../utils/markdown";
+import { parseMemoImages, parseMemoTags } from "../utils/markdown";
 import { getMemoVisibleContent } from "../utils/memoFrontmatter";
 import { formatServiceError, formatSettingsText } from "../utils/serviceText";
 import type { MemoAction, TrashAction } from "./KnomoActionDispatch";
@@ -361,6 +361,7 @@ export class KnomoView extends ItemView {
 	private quoteReferenceText: string | null = null;
 	private quoteMarkdownText: string | null = null;
 	private draftContent = "";
+	private readonly pendingComposerAttachmentPaths = new Set<string>();
 	private isSaving = false;
 	private isManualRefreshing = false;
 	private lastKnownLocalDate = formatTimeBuoyDate(new Date());
@@ -1262,6 +1263,18 @@ export class KnomoView extends ItemView {
 			cls: "knomo-card-flow",
 		});
 		this.registerDomEvent(this.cardFlowEl, "scroll", () => this.handleCardFlowScroll());
+		this.registerDomEvent(this.cardFlowEl, "dragover", (event) => {
+			if (this.currentLayout !== "mobile" && hasFileDragPayload(event.dataTransfer)) {
+				event.preventDefault();
+			}
+		});
+		this.registerDomEvent(this.cardFlowEl, "drop", (event) => {
+			if (this.currentLayout !== "mobile" && hasFileDragPayload(event.dataTransfer)) {
+				// Viewing a card is intentionally read-only for image drops.
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		});
 		this.registerDomEvent(this.cardFlowEl, "mouseover", (event) => {
 			this.handleMarkdownInternalLinkHover(event);
 		});
@@ -1395,6 +1408,25 @@ export class KnomoView extends ItemView {
 		});
 		this.registerDomEvent(this.inputEl, "input", (event) => {
 			this.handleComposerInput(event);
+		});
+		this.registerDomEvent(this.inputEl, "paste", (event) => {
+			this.handleComposerPaste(event);
+		});
+		this.registerDomEvent(this.inputEl, "dragover", (event) => {
+			const dataTransfer = event.dataTransfer;
+			if (this.currentLayout !== "mobile" && dataTransfer !== null && hasFileDragPayload(dataTransfer)) {
+				event.preventDefault();
+				dataTransfer.dropEffect = "copy";
+			}
+		});
+		this.registerDomEvent(this.inputEl, "drop", (event) => {
+			if (this.currentLayout === "mobile" || !hasFileDragPayload(event.dataTransfer)) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			const files = getImageFiles(event.dataTransfer);
+			if (files.length > 0) void this.insertImageFiles(files);
 		});
 		this.registerDomEvent(this.inputEl, "focus", () => {
 			this.handleComposerInputFocus();
@@ -3549,6 +3581,7 @@ export class KnomoView extends ItemView {
 				timeBuoyOutcome = created.timeBuoy;
 				mutation = { type: "create", memo };
 			}
+			await this.cleanupPendingComposerAttachments(preparedInput.content, true);
 			this.draftContent = "";
 			this.clearComposerContext();
 			if (this.inputEl !== null) {
@@ -3987,6 +4020,8 @@ export class KnomoView extends ItemView {
 
 	private closeComposerKeepingDraft(): void {
 		this.closeTimeBuoyPicker(false);
+		const currentContent = this.inputEl?.value ?? this.draftContent;
+		void this.cleanupPendingComposerAttachments(currentContent);
 		if (this.currentLayout === "mobile") {
 			this.closeMobileComposerKeepingDraft();
 			return;
@@ -4149,6 +4184,7 @@ export class KnomoView extends ItemView {
 	}
 
 	private clearComposerMode(): void {
+		void this.cleanupPendingComposerAttachments("", true);
 		this.clearComposerContext();
 		this.draftContent = "";
 		if (this.inputEl !== null) {
@@ -6051,7 +6087,19 @@ export class KnomoView extends ItemView {
 		await this.app.workspace.openLinkText(linkInfo.linktext, linkInfo.sourcePath, Keymap.isModEvent(event));
 	}
 
-	private async insertImageFiles(files: FileList | null): Promise<void> {
+	private handleComposerPaste(event: ClipboardEvent): void {
+		if (this.currentLayout === "mobile") {
+			return;
+		}
+		const files = getImageFiles(event.clipboardData);
+		if (files.length === 0) {
+			return;
+		}
+		event.preventDefault();
+		void this.insertImageFiles(files);
+	}
+
+	private async insertImageFiles(files: FileList | readonly File[] | null): Promise<void> {
 		if (files === null || files.length === 0) {
 			return;
 		}
@@ -6060,12 +6108,34 @@ export class KnomoView extends ItemView {
 			if (sourcePath === null) {
 				return;
 			}
-			const links = await this.attachmentService.createImageEmbedLinks(sourcePath, Array.from(files));
+			const imageFiles = Array.from(files).filter(isSupportedImageFile).map(normalizeImageFileName);
+			if (imageFiles.length === 0) {
+				return;
+			}
+			const links = await this.attachmentService.createImageEmbedLinks(sourcePath, imageFiles);
+			for (const image of parseMemoImages(links.join("\n"))) {
+				this.pendingComposerAttachmentPaths.add(image.path);
+			}
 			this.insertText(links.join("\n"), this.currentLayout !== "mobile");
 		} catch (error) {
 			const message = formatServiceError(error, t("error.imageInsertFailed"));
 			this.updateStatus(message, true);
 			new Notice(message);
+		}
+	}
+
+	private async cleanupPendingComposerAttachments(content: string, finalize = false): Promise<void> {
+		if (this.pendingComposerAttachmentPaths.size === 0) return;
+		const referenced = new Set(parseMemoImages(content).map((image) => image.path));
+		const candidates = [...this.pendingComposerAttachmentPaths].filter((path) => !referenced.has(path));
+		try {
+			await this.attachmentService.cleanupUnreferenced(candidates);
+			for (const path of candidates) this.pendingComposerAttachmentPaths.delete(path);
+		} catch (error) {
+			console.error("PlainMemo failed to clean unreferenced composer pictures", error);
+		}
+		if (finalize) {
+			for (const path of referenced) this.pendingComposerAttachmentPaths.delete(path);
 		}
 	}
 
@@ -6116,4 +6186,53 @@ function isTimeBuoyTab(value: string | null): value is TimeBuoyTab {
 
 function isTimeBuoyTabNavigationKey(key: string): boolean {
 	return key === "ArrowLeft" || key === "ArrowRight" || key === "Home" || key === "End";
+}
+
+const SUPPORTED_IMAGE_EXTENSIONS = new Set(["avif", "bmp", "gif", "jpeg", "jpg", "png", "svg", "webp"]);
+const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
+	"image/avif": "avif",
+	"image/bmp": "bmp",
+	"image/gif": "gif",
+	"image/jpeg": "jpg",
+	"image/png": "png",
+	"image/svg+xml": "svg",
+	"image/webp": "webp",
+};
+
+function hasFileDragPayload(dataTransfer: DataTransfer | null): boolean {
+	return dataTransfer?.types.includes("Files") ?? false;
+}
+
+function getImageFiles(dataTransfer: DataTransfer | null): File[] {
+	if (dataTransfer === null) {
+		return [];
+	}
+	const directFiles = Array.from(dataTransfer.files).filter(isSupportedImageFile);
+	if (directFiles.length > 0) {
+		return directFiles;
+	}
+	return Array.from(dataTransfer.items)
+		.filter((item) => item.kind === "file")
+		.map((item) => item.getAsFile())
+		.filter((file): file is File => file !== null && isSupportedImageFile(file));
+}
+
+function isSupportedImageFile(file: File): boolean {
+	if (file.type in IMAGE_MIME_EXTENSIONS) {
+		return true;
+	}
+	const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+	return SUPPORTED_IMAGE_EXTENSIONS.has(extension);
+}
+
+function normalizeImageFileName(file: File): File {
+	const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+	if (SUPPORTED_IMAGE_EXTENSIONS.has(extension)) {
+		return file;
+	}
+	const mimeExtension = IMAGE_MIME_EXTENSIONS[file.type];
+	if (mimeExtension === undefined) {
+		return file;
+	}
+	return new File([file], `pasted-image-${Date.now()}.${mimeExtension}`, { type: file.type });
 }
